@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The SCAN029 case: attributes, SOM facies and SHAP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script data-goatcounter="https://hbedle.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+<header class="bar">
+  <div class="case">
+    <h1>The SCAN029 case</h1>
+    <p>Californië geothermal area, Venlo, the Netherlands</p>
+  </div>
+  <nav class="stages" aria-label="Stages">
+    <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
+    <button class="tag" data-stage="2"><span>2</span>Attributes</button>
+    <button class="tag" data-stage="3"><span>3</span>SOM facies</button>
+    <button class="tag" data-stage="4" disabled title="SHAP values are being computed"><span>4</span>SHAP</button>
+    <button class="tag" data-stage="5"><span>5</span>Verdict</button>
+  </nav>
+</header>
+
+<main class="board">
+  <section class="exhibit" aria-label="Seismic section">
+    <div class="viewbar">
+      <div class="seg" role="group" aria-label="Zoom">
+        <button data-zoom="full" aria-pressed="true">15–40 km</button>
+        <button data-zoom="well" aria-pressed="false">Near the well</button>
+      </div>
+      <div class="readout" id="readout">Move over the section to read position and values. Click to show a trace.</div>
+    </div>
+    <div class="canvaswrap"><canvas id="section" aria-label="Seismic section display"></canvas></div>
+  </section>
+
+  <aside class="notes">
+    <!-- Stage 1 -->
+    <div class="card" data-for="1">
+      <h2>Line and well</h2>
+      <fieldset>
+        <label><input type="checkbox" id="showWell" checked> Well path and tops</label>
+        <label><input type="checkbox" id="showHorizons" checked> Horizons</label>
+        <label><input type="checkbox" id="showUnits" checked> Formation shading</label>
+        <label><input type="checkbox" id="showInterp" checked> Interpolated horizon segments</label>
+      </fieldset>
+      <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
+      <div class="trace">
+        <h3>Trace at <span id="traceKm">34.19</span> km</h3>
+        <canvas id="wiggle" width="260" height="520" aria-label="Seismic trace"></canvas>
+        <p class="small">Negative values (black fill) are increases in acoustic <button class="term" data-term="impedance">impedance</button> in this dataset.</p>
+      </div>
+    </div>
+
+    <!-- Stage 2 -->
+    <div class="card" data-for="2" hidden>
+      <h2>Attributes</h2>
+      <label class="field">Attribute
+        <select id="attrSelect"></select>
+      </label>
+      <label class="field">Overlay opacity <input type="range" id="attrOpacity" min="0" max="1" step="0.05" value="0.75"></label>
+      <canvas id="colorbar" width="260" height="44" aria-label="Color scale"></canvas>
+      <dl class="explain">
+        <dt>Measures</dt><dd id="attrMeasures"></dd>
+        <dt>Often associated with</dt><dd id="attrGeology"></dd>
+        <dt>Source</dt><dd id="attrSource" class="small"></dd>
+      </dl>
+      <label><input type="checkbox" class="syncHorizons" checked> Horizons</label>
+    </div>
+
+    <!-- Stage 3 -->
+    <div class="card" data-for="3" hidden>
+      <h2>SOM facies</h2>
+      <div class="presets" id="presetList" role="radiogroup" aria-label="Attribute preset"></div>
+      <label class="field">Overlay opacity <input type="range" id="somOpacity" min="0" max="1" step="0.05" value="0.7"></label>
+      <p class="small">Class, share of samples, and mean value of each attribute in <button class="term" data-term="zscore">standard deviations</button>. Color scale fixed at ±2.</p>
+      <div id="classLegend" class="legend"></div>
+      <label><input type="checkbox" class="syncHorizons" checked> Horizons</label>
+    </div>
+
+    <!-- Stage 5 -->
+    <div class="card" data-for="5" hidden>
+      <h2>Verdict</h2>
+      <p>The SOM classes with the well control returned.</p>
+      <div class="presets" id="presetListVerdict" role="radiogroup" aria-label="Attribute preset"></div>
+      <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.55"></label>
+      <div id="classLegendVerdict" class="legend"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="glossary" id="glossary" role="dialog" aria-modal="false" hidden>
+  <button class="close" aria-label="Close">×</button>
+  <h3 id="glossTitle"></h3><p id="glossText"></p>
+</div>
+
+<footer class="foot">
+  Seismic: SCAN line L2EBN2020ASCAN029, EBN and TNO, via NLOG. Well: CAL-GT-04, NLOG.
+  Content CC BY-SA 4.0, Heather Bedle, University of Oklahoma.
+</footer>
+<script src="js/app.js"></script>
+</body>
+</html>
