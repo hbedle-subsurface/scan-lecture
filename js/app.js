@@ -116,16 +116,31 @@
     if (!meta || !W) return;
     cx.clearRect(0, 0, W, H); cx.fillStyle = "#111"; cx.fillRect(0, 0, W, H);
     drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
-    const s = state.stage, control = s === 5 || (!state.hideControl && s !== 5);
-    if (s === 1 && state.showUnits && control) drawUnits(state.zoom === "well");
+    const s = state.stage, control = !(s === 1 && state.hideControl);
+    if (s === 1 && state.showUnits && control) drawUnits(false);
     if (overlay && s > 1) drawRaster(overlay, { 2: state.attrOpacity, 3: state.somOpacity, 4: state.somOpacity, 5: state.verdictOpacity }[s]);
     if (control && state.showHorizons) drawHorizons(s !== 1);
-    if (control && (s === 1 || s === 5) && state.showWell) drawWell();
+    if (control && state.showWell) drawWell();
+    drawSomerenLimits();
     if ((s === 1 || s === 5) && state.showSomeren) drawSomeren();
     if (s === 1) drawTraceMarker();
     if (s === 1 && PICK_MODE) drawPicks();
     if (s === 4 && state.sample) drawSampleMarker();
     drawAxes(control);
+  }
+
+  const PICK_HALF_KM = 0.6;   // horizons are drawn as short picks this far either side of the well top
+  const topKm = (unit) => { const t = meta.well.tops.find((x) => x.unit === unit); return t ? t.km : null; };
+  const nearPick = (h, i) => h.picked || (topKm(h.unit) != null && Math.abs(meta.horizons.km[i] - topKm(h.unit)) <= PICK_HALF_KM);
+
+  function drawSomerenLimits() {
+    const [a, b] = meta.someren.km; cx.save(); clipPlot();
+    cx.setLineDash([8, 6]); cx.lineWidth = 1.8; cx.strokeStyle = "rgba(118,183,178,.95)";
+    for (const k of [a, b]) { cx.beginPath(); cx.moveTo(X(k), MARGIN.t); cx.lineTo(X(k), H - MARGIN.b); cx.stroke(); }
+    cx.setLineDash([]); cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textBaseline = "bottom"; cx.textAlign = "center";
+    const lab = "Someren license", w = cx.measureText(lab).width + 10, xm = (X(a) + X(b)) / 2, yb = H - MARGIN.b - 6;
+    if (X(b) - X(a) > w) { cx.fillStyle = "rgba(118,183,178,.95)"; cx.fillRect(xm - w / 2, yb - 17, w, 17); cx.fillStyle = "#10201f"; cx.fillText(lab, xm, yb - 2); }
+    cx.restore();
   }
 
   function runs(n, ok) { const out = []; let a = -1; for (let i = 0; i <= n; i++) { if (i < n && ok(i)) { if (a < 0) a = i; } else if (a >= 0) { out.push([a, i - 1]); a = -1; } } return out; }
@@ -134,7 +149,8 @@
     const km = meta.horizons.km; cx.save(); clipPlot();
     for (const u of meta.units) {
       const base = hz(u.base), top = u.top ? hz(u.top) : null;
-      for (const [a, b] of runs(km.length, (i) => base.twt[i] != null && (!top || top.twt[i] != null))) {
+      const ref = u.top || u.base, near = (i) => topKm(ref) != null && Math.abs(km[i] - topKm(ref)) <= PICK_HALF_KM;
+      for (const [a, b] of runs(km.length, (i) => near(i) && base.twt[i] != null && (!top || top.twt[i] != null))) {
         cx.beginPath();
         for (let i = a; i <= b; i++) { const y = top ? Y(top.twt[i]) : Y(meta.t_min); i === a ? cx.moveTo(X(km[i]), y) : cx.lineTo(X(km[i]), y); }
         for (let i = b; i >= a; i--) cx.lineTo(X(km[i]), Y(base.twt[i]));
@@ -146,11 +162,11 @@
     cx.save(); clipPlot(); cx.font = "600 13px Barlow, Arial, sans-serif"; cx.textAlign = "right"; cx.textBaseline = "middle";
     for (const u of meta.units) {
       const base = hz(u.base), top = u.top ? hz(u.top) : null;
-      const ok = (k) => base.twt[k] != null && (!top || top.twt[k] != null);
+      const ok = (k) => Math.abs(km[k] - topKm(u.top || u.base)) <= PICK_HALF_KM && base.twt[k] != null && (!top || top.twt[k] != null);
       let i = -1; for (let k = km.length - 1; k >= 0; k--) if (km[k] < view().kmB - 0.3 && ok(k)) { i = k; break; }
       if (i < 0) continue;
       let a = i; while (a > 0 && ok(a - 1)) a--;
-      if (km[i] - Math.max(km[a], view().kmA) < 3) continue;   // name only units shaded over at least 3 km
+      if (X(km[i]) - X(Math.max(km[a], view().kmA)) < 60) continue;   // name only where the shaded pick is wide enough on screen
       const y = ((top ? Y(top.twt[i]) : Y(meta.t_min + 0.08)) + Y(base.twt[i])) / 2, xk = X(km[i]), w = cx.measureText(u.name).width + 12;
       cx.fillStyle = "rgba(239,229,200,.92)"; cx.fillRect(xk - w, y - 10, w, 20);
       cx.fillStyle = u.reservoir ? "#9d0208" : "#1f1d18"; cx.fillText(u.name, xk - 6, y);
@@ -161,7 +177,7 @@
   function drawHorizons(thin) {
     const km = meta.horizons.km; cx.save(); clipPlot();
     for (const h of horizonsNow()) {
-      const valid = (i) => h.twt[i] != null;
+      const valid = (i) => h.twt[i] != null && nearPick(h, i);
       cx.strokeStyle = h.color;
       for (const [solid, test] of [[true, (i) => valid(i) && h.tracked[i]], [false, (i) => valid(i) && !h.tracked[i]]]) {
         if (!solid && !state.showInterp) continue;
@@ -173,28 +189,75 @@
         }
       }
     }
-    cx.setLineDash([]); cx.font = "600 13px Barlow, Arial, sans-serif"; cx.textBaseline = "bottom"; cx.textAlign = "left";
-    for (const h of horizonsNow()) {
-      let i = km.findIndex((k, j) => k >= view().kmA + 0.1 && h.twt[j] != null);
-      if (i < 0 || km[i] > view().kmB - 1) continue;
-      const below = h.unit === "Epen Formation", y = below ? Y(h.twt[i]) + 20 : Y(h.twt[i]) - 3, xk = Math.max(X(km[i]), MARGIN.l + 4), w = cx.measureText(h.label).width + 10;
-      cx.fillStyle = "rgba(20,24,26,.82)"; cx.fillRect(xk, y - 17, w, 17); cx.fillStyle = h.color; cx.fillText(h.label, xk + 5, y - 1);
+    cx.setLineDash([]); cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "left";
+    if (state.zoom === "well") {
+      let lastY = -Infinity;
+      for (const h of horizonsNow()) {
+        let i = -1; for (let k = km.length - 1; k >= 0; k--) if (h.twt[k] != null && nearPick(h, k)) { i = k; break; }
+        if (i < 0) continue;
+        let y = Y(h.twt[i]); if (y - lastY < 16) y = lastY + 16; lastY = y;
+        const xk = X(km[i]) + 6, w = cx.measureText(h.label).width + 10;
+        cx.fillStyle = "rgba(20,24,26,.85)"; cx.fillRect(xk, y - 8, w, 16); cx.fillStyle = h.color; cx.fillText(h.label, xk + 5, y);
+      }
     }
     cx.restore();
   }
 
+  const WELL_STYLE = { "CAL-GT-04": { color: "#ffd166", labelDy: 0, zoom: "well" }, "CAL-GT-01": { color: "#f4f1de", labelDy: 24, zoom: "well" },
+    "ASTEN-GT-02": { color: "#cdb4db", labelDy: 0, zoom: "someren" } };
+  const LABELED_TOPS = { "CAL-GT-01": new Set(["Veldhoven Formation", "Rupel Clay Member", "Houthem Formation", "Zeeland Formation"]),
+    "ASTEN-GT-02": new Set(["Kieseloolite Formation", "Breda Formation (Vrijherenberg Member)", "Heksenberg Formation", "Breda Formation (Kakert Member)",
+      "Veldhoven Clay Member", "Voort Sand Member", "Boom Clay Member", "Basal Dongen Sand Member", "Houthem Formation"]) };
+
   function drawWell() {
-    const p = meta.well.path; cx.save(); clipPlot(); cx.lineCap = "round";
-    for (const [col, w] of [["#000", 5], ["#ffd166", 2.4]]) { cx.strokeStyle = col; cx.lineWidth = w; cx.beginPath(); p.forEach((q, i) => (i ? cx.lineTo : cx.moveTo).call(cx, X(q.km), Y(q.twt))); cx.stroke(); }
-    for (const t of meta.well.tops) {
-      if (t.twt < meta.t_min) continue;
-      const key = KEY_TOPS.has(t.unit); cx.fillStyle = key ? "#ffd166" : "rgba(255,209,102,.6)";
-      cx.beginPath(); cx.arc(X(t.km), Y(t.twt), key ? 4 : 2.5, 0, Math.PI * 2); cx.fill();
+    const wells = meta.wells || [{ name: meta.well.name, path: meta.well.path, tops: meta.well.tops }];
+    cx.save(); clipPlot(); cx.lineCap = "round";
+    for (const wl of wells) {
+      const st = WELL_STYLE[wl.name] || { color: "#ffffff", labelDy: 48 }, p = wl.path;
+      for (const [col, w] of [["#000", 5], [st.color, 2.4]]) {
+        cx.strokeStyle = col; cx.lineWidth = w; cx.setLineDash(wl.estimated_path && col !== "#000" ? [6, 4] : []);
+        cx.beginPath(); p.forEach((q, i) => (i ? cx.lineTo : cx.moveTo).call(cx, X(q.km), Y(q.twt))); cx.stroke();
+      }
+      cx.setLineDash([]);
+      for (const t of wl.tops) {
+        if (t.twt < meta.t_min) continue;
+        const key = KEY_TOPS.has(t.unit) || LABELED_TOPS[wl.name]?.has(t.unit);
+        cx.fillStyle = st.color; cx.globalAlpha = key ? 1 : 0.6;
+        cx.beginPath(); cx.arc(X(t.km), Y(t.twt), key ? 4 : 2.5, 0, Math.PI * 2); cx.fill(); cx.globalAlpha = 1;
+        // tops of this well that are not tracked horizons: a short tick and, in the well zoom, the name on the left
+        if (LABELED_TOPS[wl.name]?.has(t.unit)) {
+          cx.strokeStyle = st.color; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(X(t.km) - 10, Y(t.twt)); cx.lineTo(X(t.km) + 10, Y(t.twt)); cx.stroke();
+          if (state.zoom === st.zoom) {
+            cx.font = "600 11px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "right";
+            const lab = t.unit.replace(" Formation", " Fm").replace(" Member", " Mbr"), tw = cx.measureText(lab).width + 8;
+            cx.fillStyle = "rgba(20,24,26,.85)"; cx.fillRect(X(t.km) - 14 - tw, Y(t.twt) - 7, tw, 14);
+            cx.fillStyle = st.color; cx.fillText(lab, X(t.km) - 18, Y(t.twt));
+          }
+        }
+      }
+      // karst zones and the fault zone recorded on the mud log
+      for (const ev of wl.events || []) {
+        if (ev.kind === "fault") {
+          const seg = p.filter((q) => q.md >= ev.md_top && q.md <= ev.md_base);
+          cx.strokeStyle = "#e63946"; cx.lineWidth = 7; cx.globalAlpha = 0.85; cx.beginPath();
+          [{ km: ev.km_top, twt: ev.twt_top }, ...seg, { km: ev.km_base, twt: ev.twt_base }].forEach((q, i) => (i ? cx.lineTo : cx.moveTo).call(cx, X(q.km), Y(q.twt)));
+          cx.stroke(); cx.globalAlpha = 1;
+          if (state.zoom === st.zoom) { cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textAlign = "left"; cx.textBaseline = "middle"; const tx = X(ev.km_base) + 10, ty = Y((ev.twt_top + ev.twt_base) / 2), tw = cx.measureText(ev.label).width + 10;
+            cx.fillStyle = "#e63946"; cx.fillRect(tx, ty - 8, tw, 16); cx.fillStyle = "#fff"; cx.fillText(ev.label, tx + 5, ty); }
+        } else if (ev.kind === "karst") {
+          const xk = X(ev.km_top), yk = Y(ev.twt_top); cx.fillStyle = "#4cc9f0"; cx.strokeStyle = "#000"; cx.lineWidth = 1;
+          cx.beginPath(); cx.moveTo(xk + 7, yk); cx.lineTo(xk, yk - 5); cx.lineTo(xk - 7, yk); cx.lineTo(xk, yk + 5); cx.closePath(); cx.fill(); cx.stroke();
+        }
+      }
+      const off = p.map((q) => q.offset_m);
+      const dist = Math.max(...off) - Math.min(...off) < 50 ? `${(off[0] / 1000).toFixed(1)} km` : `${(Math.min(...off) / 1000).toFixed(1)}–${(Math.max(...off) / 1000).toFixed(1)} km`;
+      const label = `${wl.name}${wl.year ? ` (drilled ${wl.year})` : ""}, ${dist} from the line${wl.estimated_path ? ", path estimated" : ""}`;
+      const top = p.find((q) => q.twt >= meta.t_min + 0.02) || p[0];
+      cx.font = "600 13px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; const w = cx.measureText(label).width + 12;
+      let lx = X(top.km) + 8; if (lx + w > W - MARGIN.r - 4) lx = X(top.km) - 8 - w;
+      const ly = Y(top.twt) - 2 + st.labelDy;
+      cx.fillStyle = st.color; cx.fillRect(lx, ly, w, 20); cx.fillStyle = "#1f1d18"; cx.textAlign = "left"; cx.fillText(label, lx + 6, ly + 10);
     }
-    const top = p.find((q) => q.twt >= meta.t_min + 0.02) || p[0], label = `${meta.well.name}, projected 0.5–1.4 km from the line`;
-    cx.font = "600 13px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; const w = cx.measureText(label).width + 12;
-    let lx = X(top.km) + 8; if (lx + w > W - MARGIN.r - 4) lx = X(top.km) - 8 - w;
-    cx.fillStyle = "#ffd166"; cx.fillRect(lx, Y(top.twt) - 2, w, 20); cx.fillStyle = "#1f1d18"; cx.textAlign = "left"; cx.fillText(label, lx + 6, Y(top.twt) + 8);
     cx.restore();
   }
 
@@ -209,6 +272,7 @@
     }
     const x0 = X(so.km[0]), x1 = X(so.km[1]), y = MARGIN.t + 4;
     cx.strokeStyle = "#76b7b2"; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(x0, y + 10); cx.lineTo(x0, y); cx.lineTo(x1, y); cx.lineTo(x1, y + 10); cx.stroke();
+    if (X(so.km[1]) < MARGIN.l + 20 || X(so.km[0]) > W - MARGIN.r - 20) { cx.restore(); return; }
     const lab = `Someren exploration license (approx.), target ${b.depth_m[0]}–${b.depth_m[1]} m`;
     const i0 = inRange.length ? inRange[0] : 0, ly = inRange.length ? Y(b.top[i0]) - 26 : y + 14;
     cx.font = "600 13px Barlow, Arial, sans-serif"; const w = cx.measureText(lab).width + 12, lx = Math.max(MARGIN.l + 4, x0);

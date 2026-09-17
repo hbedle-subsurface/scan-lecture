@@ -1,0 +1,8 @@
+kind,md_top_m,md_base_m,label
+karst,1935,1935,Karst zone
+karst,1944,1944,Karst zone
+karst,2343,2343,Karst zone
+karst,2416,2420,Karst zone
+karst,2432,2432,Karst zone
+losses,1935.5,1935.5,Total mud losses begin
+fault,2750,3037.2,Tegelen fault zone (from mudlog)

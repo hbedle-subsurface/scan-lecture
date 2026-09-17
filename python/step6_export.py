@@ -106,6 +106,11 @@ def main():
         section=dict(file="section.bin", nx=int(sec.shape[0]), dx_m=10),
         grid=dict(nx=int(A["coherence"].shape[0]), dx_m=20, km_min=float(s1["att_km"][0]), km_max=float(s1["att_km"][-1]),
                   nt=len(range(t0, t1, C.ATT_TSTEP)), dt=C.DT * C.ATT_TSTEP),
+        wells=[dict(name=w["name"], estimated_path=w["estimated_path"], kickoff_md=w["kickoff_md"], events=w["events"],
+                    position_from_map=w["position_from_map"], year=w["year"],
+                    path=[dict(md=round(q["md"], 1), km=round(q["km"], 4), twt=round(q["twt"], 4), offset_m=round(q["offset_m"])) for q in w["path"]],
+                    tops=[dict(unit=t["unit"], md=t["md"], tvdss=round(t["tvdss"], 1), km=round(t["km"], 4), twt=round(t["twt"], 4), offset_m=round(t["offset_m"])) for t in w["tops"]])
+               for w in well["wells"]],
         someren=dict(km=list(C.SOMEREN_KM), depth_band=well["depth_band"], depth_axis=well["someren_axis"]),
         well=dict(name=C.WELL["name"],
                   path=[dict(km=round(p["km"], 4), twt=round(p["twt"], 4), offset_m=round(p["offset_m"])) for p in well["path"]],
