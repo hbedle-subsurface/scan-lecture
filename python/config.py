@@ -22,3 +22,9 @@ ATT_STEP = 8                  # every 8th CDP (20 m): attributes and SOM
 WELL = dict(name="CAL-GT-04", rd_x=203337.28, rd_y=382807.38, rt_above_nap=31.2)
 HORIZON_KM = (30.0, 39.0)     # horizons are tracked only near the well
 ATT_WINDOW = (7, 31)          # attribute averaging window: 7 traces x 31 samples (140 m x 62 ms)
+
+# Attributes computed in AASPI on the CDP 5500-16500, 0-2 s crop and exported as SEG-Y (CDP in byte 21)
+AASPI_DIR = RAW / "aaspi"
+AASPI = {"relative_acoustic_impedance": "relative_acoustic_impedance_hb_1.segy",
+         "rms_amplitude": "rms_amplitude_hb_1.segy",
+         "amplitude_volume_transform": "AVT_hb_1.segy"}

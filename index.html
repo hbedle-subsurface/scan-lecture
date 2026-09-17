@@ -20,7 +20,7 @@
     <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
     <button class="tag" data-stage="2"><span>2</span>Attributes</button>
     <button class="tag" data-stage="3"><span>3</span>SOM facies</button>
-    <button class="tag" data-stage="4" disabled title="SHAP values are being computed"><span>4</span>SHAP</button>
+    <button class="tag" data-stage="4"><span>4</span>SHAP</button>
     <button class="tag" data-stage="5"><span>5</span>Verdict</button>
   </nav>
 </header>
@@ -48,6 +48,13 @@
         <label><input type="checkbox" id="showInterp" checked> Interpolated horizon segments</label>
       </fieldset>
       <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
+      <div class="pick" id="pickPanel" hidden>
+        <h3>Pick horizons</h3>
+        <label class="field">Horizon <select id="pickHorizon"></select></label>
+        <label><input type="checkbox" id="pickSnap" checked> Snap to the horizon polarity within ±8 ms</label>
+        <p class="small">Click adds a point. Shift-click removes the nearest point. Picked horizons replace the automatic ones along their picked extent.</p>
+        <div class="row2"><button class="big" id="pickClear">Clear horizon</button><button class="big" id="pickSave">Download picks</button></div>
+      </div>
       <div class="trace">
         <h3>Trace at <span id="traceKm">34.19</span> km</h3>
         <canvas id="wiggle" width="260" height="520" aria-label="Seismic trace"></canvas>
@@ -79,6 +86,22 @@
       <p class="small">Class, share of samples, and mean value of each attribute in <button class="term" data-term="zscore">standard deviations</button>. Color scale fixed at ±2.</p>
       <div id="classLegend" class="legend"></div>
       <label><input type="checkbox" class="syncHorizons" checked> Horizons</label>
+    </div>
+
+    <!-- Stage 4 -->
+    <div class="card" data-for="4" hidden>
+      <h2>SHAP</h2>
+      <div class="presets" id="presetListShap" role="radiogroup" aria-label="Attribute preset"></div>
+      <label class="field">Map
+        <select id="shapView"></select>
+      </label>
+      <label class="field">Overlay opacity <input type="range" id="shapOpacity" min="0" max="1" step="0.05" value="0.7"></label>
+      <canvas id="shapBar" width="260" height="40" aria-label="SHAP color scale" hidden></canvas>
+      <h3 id="sampleTitle">Click the section to explain a sample</h3>
+      <canvas id="shapLocal" width="268" height="210" aria-label="SHAP values for the selected sample"></canvas>
+      <h3>Mean |SHAP| by attribute</h3>
+      <canvas id="shapGlobal" width="268" height="170" aria-label="Mean absolute SHAP values"></canvas>
+      <p class="small"><button class="term" data-term="shap">SHAP values</button> here explain the sample's membership in the class the <button class="term" data-term="som">SOM</button> assigned. Axes fixed.</p>
     </div>
 
     <!-- Stage 5 -->

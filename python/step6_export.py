@@ -6,9 +6,17 @@ import config as C
 
 ATTRIBUTES = {
     "rms_amplitude": dict(label="RMS amplitude", unit="relative", cmap="magma", family="Single-trace",
-        measures="Root-mean-square of the reflection amplitude in a 140 m by 62 ms window.",
+        measures="Root-mean-square of the reflection amplitude in a window along each trace, averaged over 140 m by 62 ms.",
         geology="Higher values often correspond to stronger impedance contrasts, such as interbedded lithologies or evaporite and carbonate boundaries.",
         source="Standard amplitude statistic; see Chopra and Marfurt (2007)."),
+    "relative_acoustic_impedance": dict(label="Relative acoustic impedance", unit="relative", cmap="RdBu_r", family="Single-trace",
+        measures="Running integral of the zero-phase trace, which approximates band-limited changes in acoustic impedance. Sign set so that higher impedance is positive.",
+        geology="Layers with higher impedance than their surroundings, such as tight carbonate or cemented sandstone below shale, often appear as positive values.",
+        source="Trace integration after Becquey, Lavergne and Willm (1979)."),
+    "amplitude_volume_transform": dict(label="Amplitude volume transform (AVT)", unit="relative", cmap="RdBu_r", family="Single-trace",
+        measures="RMS amplitude in a short window, rotated by -90 degrees in phase, giving a band-limited trace that follows reflection-amplitude packages.",
+        geology="Often used to outline bodies with a distinct amplitude character, such as channel fills or carbonate buildups.",
+        source="Bulhões and Amorim (2005)."),
     "envelope": dict(label="Envelope", unit="relative", cmap="magma", family="Single-trace",
         measures="Magnitude of the complex trace, averaged in the window. It is independent of phase.",
         geology="Often used to map reflection strength and bright spots.",
@@ -42,7 +50,7 @@ ATTRIBUTES = {
         geology="Changes in amplitude with angle depend on elastic contrasts. In the Carboniferous here the near and far stacks correlate poorly, so noise contributes strongly.",
         source="Amplitude-versus-angle concept after Shuey (1985) and Rutherford and Williams (1989)."),
 }
-PRESET_LABELS = {"amplitude_frequency": "Amplitude and frequency", "geometric": "Geometric",
+PRESET_LABELS = {"amplitude_impedance": "Amplitude and impedance", "frequency_continuity": "Frequency and continuity",
                  "combined": "Combined", "combined_far_near": "Combined plus far minus near"}
 UNITS = [
     dict(name="North Sea Group", top=None, base="Houthem Formation", color="#d9b75f"),
@@ -76,7 +84,7 @@ def main():
     attrs = {}
     for k, m in ATTRIBUTES.items():
         v = A[k][:, t0:t1]; lo, hi = (float(x) for x in np.percentile(v, [1, 99]))
-        if k == "far_minus_near": hi = max(abs(lo), abs(hi)); lo = -hi
+        if m["cmap"] == "RdBu_r": hi = max(abs(lo), abs(hi)); lo = -hi
         np.clip(np.round((v - lo) / (hi - lo) * 255), 0, 255).astype(np.uint8).tofile(C.DATA / f"attr_{k}.bin")
         attrs[k] = dict(m, min=round(lo, 4), max=round(hi, 4), lut=lut(m["cmap"]))
     presets = {}
@@ -84,6 +92,11 @@ def main():
         som[k].tofile(C.DATA / f"som_{k}.bin")
         presets[k] = dict(label=PRESET_LABELS[k], **info)
 
+    shap_meta = {}
+    for k in sominfo:
+        sh = np.load(C.WORK / f"step7_shap_{k}.npz"); info = json.load(open(C.WORK / f"step7_shap_{k}.json"))
+        sh[k].tofile(C.DATA / f"shap_{k}.bin"); sh[k + "_membership"].tofile(C.DATA / f"membership_{k}.bin")
+        shap_meta[k] = info
     meta = dict(
         line="SCAN029 (L2EBN2020ASCAN029)", km_min=float(s1["sec_km"][0]), km_max=float(s1["sec_km"][-1]),
         t_min=t0 * C.DT, t_max=t1 * C.DT, dt=C.DT, nt=t1 - t0,
@@ -94,6 +107,7 @@ def main():
                   tops=[dict(unit=t["unit"], md=t["md"], tvdss=round(t["tvdss"], 1), km=round(t["km"], 4), twt=round(t["twt"], 4), offset_m=round(t["offset_m"])) for t in well["tops"]],
                   depth_axis=well["depth_axis"]),
         horizons=dict(km=[round(x, 4) for x in hz["km"]], items=[dict(unit=u, **HORIZON_STYLE[u], **hz["horizons"][u]) for u in HORIZON_STYLE]),
+        shap=shap_meta,
         units=UNITS, attributes=attrs, presets=presets, n_classes=8,
     )
     json.dump(meta, open(C.DATA / "meta.json", "w"), separators=(",", ":"))

@@ -8,6 +8,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--board);color:var(--chalk);font-family:var(--font-body);font-size:16px;line-height:1.45}
 button,select,input{font:inherit}
+[hidden]{display:none!important}
 :focus-visible{outline:3px solid #ffd166;outline-offset:2px}
 
 .bar{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding:14px 20px 10px;border-bottom:1px solid var(--line)}
@@ -69,3 +70,7 @@ button,select,input{font:inherit}
   .board{grid-template-columns:1fr}
   .canvaswrap{aspect-ratio:4/3.4}
 }
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pick{border-top:1px dashed var(--ink-soft);margin-top:12px;padding-top:4px}
+#shapLocal,#shapGlobal,#shapBar{display:block;width:100%;height:auto;background:#fffaf0}

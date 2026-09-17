@@ -11,6 +11,8 @@ import numpy as np
 from scipy.ndimage import gaussian_filter, uniform_filter1d, median_filter
 import config as C
 
+NEAR_WELL_KM = 1.0
+DEEP = ["Zechstein Upper Claystone Formation", "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]
 HORIZONS = ["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
             "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]
 
@@ -66,8 +68,19 @@ def main():
 
     constrain("Zeeland Formation", out["Epen Formation"]["t"], out["Zeeland Formation"]["sign"])
     constrain("Bosscheveld Formation", out["Zeeland Formation"]["t"], out["Bosscheveld Formation"]["sign"], everywhere=True)
-    res = dict(km=km.tolist(), horizons={k: dict(twt=np.round(v["t"], 4).tolist(), tracked=v["tracked"].astype(int).tolist())
-                                         for k, v in out.items()}, seeds=seeds)
+    # Below the Chalk the reflectors are dipping and discontinuous, and the tracker drifts across events
+    # away from the tie. Those horizons are kept only within NEAR_WELL_KM of their seed; interpreted picks
+    # (data/horizon_picks.json, made in the page's pick mode) replace them along the rest of the line.
+    for name in DEEP:
+        far = np.abs(km - km[out[name]["col"]]) > NEAR_WELL_KM
+        out[name]["t"] = np.where(far, np.nan, out[name]["t"]); out[name]["tracked"] &= ~far
+    def clean(a): return [None if not np.isfinite(x) else round(float(x), 4) for x in a]
+    # write on the full 15-40 km section grid so interpreted picks can extend anywhere along the line
+    n_all = len(km_all)
+    def pad(a, fill):
+        full = np.full(n_all, fill, dtype=float); full[c0:c1] = a; return full
+    res = dict(km=km_all.tolist(), horizons={k: dict(twt=clean(pad(v["t"], np.nan)), tracked=pad(v["tracked"], 0).astype(int).tolist(),
+                                                 polarity=int(v["sign"])) for k, v in out.items()}, seeds=seeds)
     json.dump(res, open(C.WORK / "step3_horizons.json", "w"))
     for k, v in seeds.items():
         print(f"{k:38s} predicted {v['predicted_twt']:.3f}  seed {v['seed_twt']:.3f}  polarity {v['polarity']:+d}  tracked {out[k]['tracked'].mean():.0%}")

@@ -12,10 +12,10 @@ from sklearn.cluster import KMeans
 import config as C
 
 PRESETS = {
-    "amplitude_frequency": ["rms_amplitude", "instantaneous_frequency", "spectral_ratio"],
-    "geometric": ["apparent_dip", "dip_variability", "coherence"],
-    "combined": ["rms_amplitude", "instantaneous_frequency", "spectral_ratio", "apparent_dip", "dip_variability", "coherence"],
-    "combined_far_near": ["rms_amplitude", "instantaneous_frequency", "spectral_ratio", "apparent_dip", "dip_variability", "coherence", "far_minus_near"],
+    "amplitude_impedance": ["rms_amplitude", "relative_acoustic_impedance", "amplitude_volume_transform"],
+    "frequency_continuity": ["instantaneous_frequency", "coherence", "dip_variability"],
+    "combined": ["rms_amplitude", "relative_acoustic_impedance", "amplitude_volume_transform", "instantaneous_frequency", "coherence", "dip_variability"],
+    "combined_far_near": ["rms_amplitude", "relative_acoustic_impedance", "amplitude_volume_transform", "instantaneous_frequency", "coherence", "dip_variability", "far_minus_near"],
 }
 N_CLASSES = 8
 
