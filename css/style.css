@@ -88,3 +88,8 @@ button,select,input{font:inherit}
 .runlog button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .runlog small{display:block;opacity:.8}
 .warn{color:#9d0208}
+
+.chips{display:inline-flex;flex-wrap:wrap;gap:6px}
+.chips button{--chip:#fff;border:2px solid var(--chip);background:transparent;color:var(--chip);border-radius:14px;padding:3px 10px;font-size:.85rem;font-weight:600;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--chip);color:#1f1d18}
+.chips button:last-child{--chip:#dfe6e9}

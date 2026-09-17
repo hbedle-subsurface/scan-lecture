@@ -19,7 +19,7 @@
   const state = {
     stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: true, showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, showSomeren: true,
+    runs: [], current: -1, busy: false, showSomeren: true, showNames: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -190,29 +190,20 @@
       }
     }
     cx.setLineDash([]); cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "left";
-    if (state.zoom === "well") {
-      let lastY = -Infinity;
-      for (const h of horizonsNow()) {
-        let i = -1; for (let k = km.length - 1; k >= 0; k--) if (h.twt[k] != null && nearPick(h, k)) { i = k; break; }
-        if (i < 0) continue;
-        let y = Y(h.twt[i]); if (y - lastY < 16) y = lastY + 16; lastY = y;
-        const xk = X(km[i]) + 6, w = cx.measureText(h.label).width + 10;
-        cx.fillStyle = "rgba(20,24,26,.85)"; cx.fillRect(xk, y - 8, w, 16); cx.fillStyle = h.color; cx.fillText(h.label, xk + 5, y);
-      }
-    }
     cx.restore();
   }
 
-  const WELL_STYLE = { "CAL-GT-04": { color: "#ffd166", labelDy: 0, zoom: "well" }, "CAL-GT-01": { color: "#f4f1de", labelDy: 24, zoom: "well" },
-    "ASTEN-GT-02": { color: "#cdb4db", labelDy: 0, zoom: "someren" } };
-  const LABELED_TOPS = { "CAL-GT-01": new Set(["Veldhoven Formation", "Rupel Clay Member", "Houthem Formation", "Zeeland Formation"]),
+  const WELL_STYLE = { "CAL-GT-04": { color: "#ffd166", labelDy: 0, zoom: "well", side: "right" }, "CAL-GT-01": { color: "#f4f1de", labelDy: 24, zoom: "well" },
+    "ASTEN-GT-02": { color: "#cdb4db", labelDy: 26, zoom: "someren" } };
+  const LABELED_TOPS = { "CAL-GT-04": new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation", "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]),
+    "CAL-GT-01": new Set(["Veldhoven Formation", "Rupel Clay Member", "Houthem Formation", "Zeeland Formation"]),
     "ASTEN-GT-02": new Set(["Kieseloolite Formation", "Breda Formation (Vrijherenberg Member)", "Heksenberg Formation", "Breda Formation (Kakert Member)",
       "Veldhoven Clay Member", "Voort Sand Member", "Boom Clay Member", "Basal Dongen Sand Member", "Houthem Formation"]) };
 
   function drawWell() {
     const wells = meta.wells || [{ name: meta.well.name, path: meta.well.path, tops: meta.well.tops }];
     cx.save(); clipPlot(); cx.lineCap = "round";
-    for (const wl of wells) {
+    for (const wl of wells.filter((w) => !state.hiddenWells.has(w.name))) {
       const st = WELL_STYLE[wl.name] || { color: "#ffffff", labelDy: 48 }, p = wl.path;
       for (const [col, w] of [["#000", 5], [st.color, 2.4]]) {
         cx.strokeStyle = col; cx.lineWidth = w; cx.setLineDash(wl.estimated_path && col !== "#000" ? [6, 4] : []);
@@ -227,12 +218,19 @@
         // tops of this well that are not tracked horizons: a short tick and, in the well zoom, the name on the left
         if (LABELED_TOPS[wl.name]?.has(t.unit)) {
           cx.strokeStyle = st.color; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(X(t.km) - 10, Y(t.twt)); cx.lineTo(X(t.km) + 10, Y(t.twt)); cx.stroke();
-          if (state.zoom === st.zoom) {
-            cx.font = "600 11px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "right";
-            const lab = t.unit.replace(" Formation", " Fm").replace(" Member", " Mbr"), tw = cx.measureText(lab).width + 8;
-            cx.fillStyle = "rgba(20,24,26,.85)"; cx.fillRect(X(t.km) - 14 - tw, Y(t.twt) - 7, tw, 14);
-            cx.fillStyle = st.color; cx.fillText(lab, X(t.km) - 18, Y(t.twt));
-          }
+        }
+      }
+      if (state.showNames) {
+        // formation names beside the well, pushed apart so they do not overlap
+        const right = st.side === "right", labs = wl.tops.filter((t) => LABELED_TOPS[wl.name]?.has(t.unit) && t.twt >= meta.t_min).sort((a, b) => a.twt - b.twt);
+        cx.font = "600 11px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; let lastY = -Infinity;
+        for (const t of labs) {
+          const lab = t.unit.replace(" Formation", " Fm").replace(" Member", " Mbr"), tw = cx.measureText(lab).width + 8;
+          let y = Y(t.twt); if (y - lastY < 14) y = lastY + 14; lastY = y;
+          const x0 = right ? X(t.km) + 14 : X(t.km) - 14 - tw;
+          cx.strokeStyle = st.color; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(X(t.km) + (right ? 10 : -10), Y(t.twt)); cx.lineTo(right ? x0 : x0 + tw, y); cx.stroke();
+          cx.fillStyle = "rgba(20,24,26,.85)"; cx.fillRect(x0, y - 7, tw, 14);
+          cx.fillStyle = st.color; cx.textAlign = "left"; cx.fillText(lab, x0 + 4, y);
         }
       }
       // karst zones and the fault zone recorded on the mud log
@@ -268,13 +266,13 @@
     if (inRange.length > 1) {
       cx.beginPath(); inRange.forEach((i, n) => (n ? cx.lineTo : cx.moveTo).call(cx, X(b.km[i]), Y(b.top[i])));
       [...inRange].reverse().forEach((i) => cx.lineTo(X(b.km[i]), Y(b.base[i]))); cx.closePath();
-      cx.fillStyle = "rgba(118,183,178,.18)"; cx.fill(); cx.setLineDash([7, 5]); cx.strokeStyle = "#76b7b2"; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
+      cx.setLineDash([7, 5]); cx.strokeStyle = "#76b7b2"; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
     }
     const x0 = X(so.km[0]), x1 = X(so.km[1]), y = MARGIN.t + 4;
     cx.strokeStyle = "#76b7b2"; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(x0, y + 10); cx.lineTo(x0, y); cx.lineTo(x1, y); cx.lineTo(x1, y + 10); cx.stroke();
     if (X(so.km[1]) < MARGIN.l + 20 || X(so.km[0]) > W - MARGIN.r - 20) { cx.restore(); return; }
     const lab = `Someren exploration license (approx.), target ${b.depth_m[0]}–${b.depth_m[1]} m`;
-    const i0 = inRange.length ? inRange[0] : 0, ly = inRange.length ? Y(b.top[i0]) - 26 : y + 14;
+    const ly = MARGIN.t + 6;
     cx.font = "600 13px Barlow, Arial, sans-serif"; const w = cx.measureText(lab).width + 12, lx = Math.max(MARGIN.l + 4, x0);
     cx.fillStyle = "#76b7b2"; cx.fillRect(lx, ly, w, 20); cx.fillStyle = "#10201f"; cx.textAlign = "left"; cx.textBaseline = "middle"; cx.fillText(lab, lx + 6, ly + 10);
     cx.restore();
@@ -283,7 +281,10 @@
   function drawTraceMarker() {
     const x = X(state.traceKm); if (x < MARGIN.l || x > W - MARGIN.r) return;
     cx.save(); cx.strokeStyle = "rgba(200,54,45,.9)"; cx.lineWidth = 1.5; cx.setLineDash([3, 3]);
-    cx.beginPath(); cx.moveTo(x, MARGIN.t); cx.lineTo(x, H - MARGIN.b); cx.stroke(); cx.restore();
+    cx.beginPath(); cx.moveTo(x, MARGIN.t); cx.lineTo(x, H - MARGIN.b); cx.stroke();
+    cx.setLineDash([]); cx.font = "600 11px Barlow, Arial, sans-serif"; const lab = "Trace shown at right", tw = cx.measureText(lab).width + 8;
+    cx.fillStyle = "rgba(200,54,45,.9)"; cx.fillRect(x + 4, H - MARGIN.b - 20, tw, 15); cx.fillStyle = "#fff"; cx.textAlign = "left"; cx.textBaseline = "middle"; cx.fillText(lab, x + 8, H - MARGIN.b - 12.5);
+    cx.restore();
   }
 
   function drawSampleMarker() {
@@ -480,6 +481,19 @@
     worker.postMessage({ type: "explain", index: gi * g.nt + j });
   }
 
+  function wireWellChips() {
+    const box = $("#wellChips"), wells = meta.wells || [];
+    for (const w of wells) {
+      const b = document.createElement("button"); b.textContent = w.name; b.setAttribute("aria-pressed", "true");
+      b.style.setProperty("--chip", (WELL_STYLE[w.name] || {}).color || "#fff");
+      b.addEventListener("click", () => { state.hiddenWells.has(w.name) ? state.hiddenWells.delete(w.name) : state.hiddenWells.add(w.name); b.setAttribute("aria-pressed", String(!state.hiddenWells.has(w.name))); draw(); });
+      box.append(b);
+    }
+    const n = document.createElement("button"); n.textContent = "Formation names"; n.setAttribute("aria-pressed", "true");
+    n.addEventListener("click", () => { state.showNames = !state.showNames; n.setAttribute("aria-pressed", String(state.showNames)); draw(); });
+    box.append(n);
+  }
+
   function wireBuilder() {
     const box = $("#attrChecks"), groups = {};
     for (const [k, a] of Object.entries(meta.attributes)) (groups[a.family] ??= []).push([k, a]);
@@ -611,7 +625,7 @@
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
-    wire(); wireBuilder(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
+    wire(); wireWellChips(); wireBuilder(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
   }
   init();
 })();
