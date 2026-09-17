@@ -119,3 +119,6 @@ button,select,input{font:inherit}
 .term.help{display:block;margin:0 0 4px;font-size:.8rem;color:#9d0208;text-decoration:underline dotted}
 .seg button:disabled{opacity:.5;cursor:default}
 .glossary{max-width:380px}
+
+.tag.methods{text-decoration:none;background:transparent;color:var(--paper);border:1px solid var(--paper-edge);opacity:1}
+.foot a{color:var(--paper)}

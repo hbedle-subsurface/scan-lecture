@@ -21,6 +21,7 @@
     <p><strong>Californië wells:</strong> warm water is produced from the karstified Dinantian carbonate of the Zeeland Formation.</p>
   </div>
   <nav class="stages" aria-label="Stages">
+    <a class="tag methods" href="methods.html" target="_blank" rel="noopener">Methods</a>
     <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
     <button class="tag" data-stage="2"><span>2</span>Geologic setting</button>
     <button class="tag" data-stage="3"><span>3</span>Attributes</button>
@@ -143,10 +144,11 @@
     <div class="card" data-for="5" hidden>
       <h2>SHAP</h2>
       <p class="small" id="shapRunLabel">Train a SOM in stage 3 first.</p>
-      <h3>How far each attribute moves samples across the map</h3><button class="term help" data-term="helpShapGlobal">Help me read this plot</button>
+      <h3>Global SHAP: how far each attribute moves samples across the map</h3><button class="term help" data-term="helpShapGlobal">Help me read this plot</button>
       <canvas id="shapGlobal" width="268" height="200" aria-label="Mean SHAP magnitude by attribute"></canvas>
       <p class="small">Mean <button class="term" data-term="shap">SHAP</button> magnitude over 400 random samples, as a fraction of the map width. Axis fixed at 0–0.3.</p>
-      <h3 id="sampleTitle">Click the section to explain a sample</h3>
+      <h3>Local SHAP: one sample</h3>
+      <p class="small" id="sampleTitle">Click the section to explain a sample</p>
       <button class="term help" data-term="helpShapPath">Help me read this plot</button>
       <canvas id="shapPath" width="268" height="268" aria-label="Path of a sample across the SOM grid"></canvas>
       <button class="term help" data-term="helpShapBars">Help me read this plot</button>
@@ -172,6 +174,7 @@
 </div>
 
 <footer class="foot">
+  <a href="methods.html" target="_blank" rel="noopener">Methods: data, attributes, SOM and SHAP</a> ·
   Seismic: SCAN line L2EBN2020ASCAN029, EBN and TNO, via NLOG. Well: CAL-GT-04, NLOG.
   Content CC BY-SA 4.0, Heather Bedle, University of Oklahoma.
 </footer>

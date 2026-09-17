@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methods · The SCAN029 case</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body{background:var(--board)}
+  .methods-page{max-width:860px;margin:0 auto;padding:24px 20px 60px}
+  .methods-page article{background:var(--paper);color:var(--ink);padding:28px 32px;border-radius:2px;border-bottom:3px solid var(--paper-edge)}
+  .methods-page h1{font-family:var(--font-display);font-size:2.2rem;margin:0 0 4px}
+  .methods-page h2{font-family:var(--font-display);font-size:1.5rem;margin:30px 0 8px;border-bottom:1px solid var(--paper-edge);padding-bottom:4px}
+  .methods-page h3{font-family:var(--font-display);font-size:1.15rem;margin:18px 0 4px}
+  .methods-page p,.methods-page li{line-height:1.55}
+  .methods-page .eq{font-family:Georgia,serif;background:#fffaf0;border-left:3px solid var(--thread);padding:8px 12px;margin:8px 0;overflow-x:auto}
+  .methods-page table{border-collapse:collapse;width:100%;margin:8px 0;font-size:.92rem}
+  .methods-page th,.methods-page td{border:1px solid var(--paper-edge);padding:5px 8px;text-align:left;vertical-align:top}
+  .methods-page th{background:#e9dcb8}
+  .methods-page .back{color:var(--paper);display:inline-block;margin-bottom:12px}
+  .methods-page .refs li{font-size:.9rem;margin-bottom:4px}
+</style>
+</head>
+<body>
+<main class="methods-page">
+<a class="back" href="index.html">← Back to the SCAN029 case</a>
+<article>
+<h1>Methods</h1>
+<p>Details of the data preparation, attributes, self-organizing map (SOM) and SHAP values used in the SCAN029 case. The SOM and SHAP values are computed in the browser each time a SOM is trained.</p>
+
+<h2>1. Seismic data and well control</h2>
+<p>SCAN029 (L2EBN2020ASCAN029) is a 2D pre-stack time-migrated line acquired in 2020 for EBN and TNO. The full, near, mid and far angle stacks are read from 0 to 3.0 s along the whole line (CDP 100–19492, 2.5 m CDP interval). The data are zero phase, and an increase in acoustic impedance is recorded as a negative number.</p>
+<p>The stacks have no gain applied after migration. One gain curve is applied to every trace: the inverse of the smoothed median RMS amplitude at each two-way time. Because the same curve is used on every trace, amplitude differences along the line are preserved.</p>
+<p>Well tops are placed in two-way time with Dix interval velocities from the migration velocities at the velocity location nearest each point of the well path. None of the three wells has a sonic log or checkshot in the available data. CAL-GT-04 is projected with its deviation survey; the CAL-GT-01 path is estimated from its end-point offsets; ASTEN-GT-02 is vertical and 0.1 km from the line.</p>
+
+<h2>2. Attributes</h2>
+<p>Attributes are computed on every eighth CDP (20 m) and exported every 4 ms. Most are averaged over 140 m along the line and 62 ms in time, so that they describe the character of a seismic facies rather than individual reflections. Relative acoustic impedance and AVT are averaged over 140 m and 10 ms, the four stack amplitudes over 140 m only, and the three phase attributes are not averaged, because an average across the ±180° phase wrap has no physical meaning. Relative acoustic impedance, RMS amplitude and AVT were computed in AASPI; the other attributes were computed in Python. Each attribute's page in stage 3 gives what it measures and its original reference.</p>
+
+<h2>3. Self-organizing map</h2>
+<h3>3.1 Input</h3>
+<p>For the chosen window (a range along the line and a range of two-way time), each chosen attribute is converted to a z-score using its mean and standard deviation over all samples in the window:</p>
+<p class="eq">z = (a − mean) / standard deviation</p>
+<p>Each sample is then a vector with one value per attribute. Because all attributes have unit variance, each has the same weight in the distance between samples; attributes that correlate strongly therefore count their shared information more than once.</p>
+
+<h3>3.2 Map and initialization</h3>
+<p>The map is a square grid of N = n × n neurons (n = 2 to 10) on a rectangular lattice. Each neuron holds a prototype vector with one value per attribute. The prototypes start on the plane of the first two principal components of the attributes, found by power iteration on the correlation matrix of 20,000 random samples from the window. A neuron in column u and row v (both scaled to −1…1) starts at</p>
+<p class="eq">w = 2 ( u √λ₁ e₁ + v √λ₂ e₂ )</p>
+<p>where λ₁, λ₂ are the two largest eigenvalues and e₁, e₂ their eigenvectors. The sign of each eigenvector is set so that its largest component is positive, which keeps the orientation of the map similar between runs.</p>
+
+<h3>3.3 Training</h3>
+<p>Training is sequential (online). At each step one of the 20,000 training samples x is drawn at random, its best-matching neuron b is found by Euclidean distance, and every neuron k within three neighborhood widths of b on the grid moves toward x:</p>
+<p class="eq">w<sub>k</sub> ← w<sub>k</sub> + η(t) · exp( −g²<sub>bk</sub> / 2σ(t)² ) · ( x − w<sub>k</sub> )</p>
+<p>where g<sub>bk</sub> is the distance between b and k on the grid. The neighborhood width σ decreases exponentially from half the grid width (at least 1) to 0.5, and the learning rate η from 0.5 to 0.02. The number of steps is 600 per neuron, with a minimum of 8,000. The random number generator uses a fixed seed, so the same attributes, window and grid size give the same map.</p>
+
+<h3>3.4 Classification and color</h3>
+<p>After training, every sample in the window is assigned to its nearest prototype. The color of a neuron depends only on its position on the grid: a bilinear blend of four corner colors (blue, red, yellow and green). Neighboring neurons hold similar prototypes and receive similar colors. The colors are not derived from the prototype values, and the neurons are not grouped into a smaller number of classes afterward.</p>
+
+<h3>3.5 Comparison with other SOM implementations</h3>
+<p>SOM implementations differ in several choices that change the result: sequential or batch training; a rectangular or hexagonal lattice; the neighborhood function and its decay; initialization from principal components or at random; whether prototypes are displayed on a fixed grid or projected into a continuous latent space; how colors are assigned (grid position, projected coordinates, or prototype values); and whether neurons are clustered into classes afterward. These are the settings to compare when a SOM from this page and one from another package look different.</p>
+
+<h2>4. SHAP values</h2>
+<h3>4.1 What is explained</h3>
+<p>SHAP (Lundberg and Lee, 2017) is usually applied to a supervised model whose output is a number, such as a class probability. A SOM has no such output, so a quantity has to be chosen. Here the explained quantity is the sample's position on the neuron grid, because that position is what sets the sample's color on the section. A soft position is used, so that it changes smoothly as attribute values change:</p>
+<p class="eq">p(x) = Σ<sub>k</sub> m<sub>k</sub>(x) g<sub>k</sub> ,&nbsp;&nbsp; m<sub>k</sub>(x) = exp( −(d²<sub>k</sub> − d²<sub>min</sub>) / τ ) / Σ<sub>j</sub> exp( −(d²<sub>j</sub> − d²<sub>min</sub>) / τ )</p>
+<p>where g<sub>k</sub> is the (column, row) of neuron k, d<sub>k</sub> the distance from the sample to prototype k, and τ the median squared distance from a training sample to its nearest prototype. The position has two components, so each attribute receives a SHAP value with two components; the plots show its length, divided by the grid width (n − 1) so that runs with different grid sizes can be compared.</p>
+<p>For most samples the soft position lies close to the best-matching neuron. Where two neurons are nearly equally close, the soft position lies between them, while the section color comes from the single nearest neuron.</p>
+
+<h3>4.2 How the values are estimated</h3>
+<p>Shapley values average an attribute's contribution over every order in which attributes can be added. They are estimated by sampling orderings (Štrumbelj and Kononenko, 2014). For one ordering:</p>
+<ol>
+  <li>A background sample is drawn at random from the training samples.</li>
+  <li>Starting from the background sample's attribute values, the sample's own values are put in one attribute at a time, in a random order.</li>
+  <li>The change in position caused by each attribute is recorded.</li>
+</ol>
+<p>The SHAP value of an attribute is its average change over all orderings. The average position of the background samples plus the sum of all SHAP values equals the sample's position. This is an interventional estimate: attribute values are mixed between samples as if the attributes were independent.</p>
+
+<h3>4.3 Local and global SHAP</h3>
+<table>
+  <tr><th></th><th>Local SHAP</th><th>Global SHAP</th></tr>
+  <tr><td>Describes</td><td>One clicked sample</td><td>The whole SOM</td></tr>
+  <tr><td>Samples</td><td>1</td><td>400 random samples in the window</td></tr>
+  <tr><td>Orderings per sample</td><td>400</td><td>8</td></tr>
+  <tr><td>Shown as</td><td>Path on the grid and bars of each attribute's distance</td><td>Mean distance for each attribute</td></tr>
+</table>
+<p>With 8 orderings each global estimate for a single sample is noisy, but averaged over 400 samples the noise is small compared with the differences between attributes.</p>
+
+<h3>4.4 Limitations</h3>
+<ul>
+  <li><strong>Correlated attributes share credit.</strong> Two attributes carrying the same information split its SHAP value, so each can look less important than the information they share. The list of attributes correlating at 0.8 or more in stage 4 flags these.</li>
+  <li><strong>Mixed samples.</strong> Putting one sample's value of an attribute next to another sample's values of the rest can create combinations that do not occur in the data.</li>
+  <li><strong>Choice of output.</strong> A different explained quantity, such as the distance to the nearest prototype or the membership in one neuron, gives different SHAP values. Grid position was chosen because it is what the section colors show.</li>
+  <li><strong>τ</strong> sets how quickly membership falls off with distance. A smaller τ makes the position jump between neurons; a larger τ pulls every position toward the center of the grid.</li>
+</ul>
+
+<h2>References</h2>
+<ul class="refs">
+  <li>Doornenbal, J. C., H. Kombrink, R. Bouroullec, et al., 2019, New insights on subsurface energy resources in the Southern North Sea Basin area: Geological Society, London, Special Publications, 494, 233–268.</li>
+  <li>Kohonen, T., 1982, Self-organized formation of topologically correct feature maps: Biological Cybernetics, 43, 59–69.</li>
+  <li>Lundberg, S. M., and S.-I. Lee, 2017, A unified approach to interpreting model predictions: Advances in Neural Information Processing Systems, 30, 4765–4774.</li>
+  <li>Štrumbelj, E., and I. Kononenko, 2014, Explaining prediction models and individual predictions with feature contributions: Knowledge and Information Systems, 41, 647–665.</li>
+  <li>Taner, M. T., F. Koehler, and R. E. Sheriff, 1979, Complex seismic trace analysis: Geophysics, 44, 1041–1063.</li>
+  <li>van Lochem, H., M. ter Borgh, and H. Mijnlieff, 2019, Geological evaluation for the seismic acquisition programme for SCAN areas F and G: SCAN report, EBN and TNO.</li>
+</ul>
+<p class="small">Attribute references are listed with each attribute in stage 3 and in the repository README. Content CC BY-SA 4.0, Heather Bedle, University of Oklahoma.</p>
+</article>
+</main>
+<script data-goatcounter="https://hbedle.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
