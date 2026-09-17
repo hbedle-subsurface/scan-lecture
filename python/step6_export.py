@@ -13,7 +13,7 @@ ATTRIBUTES = {
         measures="Running integral of the zero-phase trace, which approximates band-limited changes in acoustic impedance. Sign set so that higher impedance is positive.",
         geology="Layers with higher impedance than their surroundings, such as tight carbonate or cemented sandstone below shale, often appear as positive values.",
         source="Trace integration after Becquey, Lavergne and Willm (1979)."),
-    "amplitude_volume_transform": dict(label="Amplitude volume transform (AVT)", unit="relative", cmap="RdBu_r", family="Single-trace",
+    "amplitude_volume_transform": dict(label="Amplitude volume transform (AVT)", unit="relative", cmap="gray", family="Single-trace",
         measures="RMS amplitude in a short window, rotated by -90 degrees in phase, giving a band-limited trace that follows reflection-amplitude packages.",
         geology="Often used to outline bodies with a distinct amplitude character, such as channel fills or carbonate buildups.",
         source="Bulhões and Amorim (2005)."),
@@ -24,6 +24,18 @@ ATTRIBUTES = {
     "instantaneous_frequency": dict(label="Instantaneous frequency", unit="Hz", cmap="viridis", family="Single-trace",
         measures="Rate of change of instantaneous phase, weighted by envelope in the window.",
         geology="Often responds to bed thickness and tuning. It also decreases with travel time as higher frequencies are attenuated.",
+        source="Taner, Koehler and Sheriff (1979)."),
+    "instantaneous_phase": dict(label="Instantaneous phase", unit="degrees", cmap="twilight", family="Single-trace",
+        measures="Phase angle of the complex trace at each sample, from -180 to +180 degrees, independent of amplitude.",
+        geology="Follows reflections of any strength with equal emphasis, so weak, continuous reflectors and terminations such as onlap and truncation are easier to follow.",
+        source="Taner, Koehler and Sheriff (1979)."),
+    "cos_instantaneous_phase": dict(label="Cosine of instantaneous phase", unit="-1 to 1", cmap="gray", family="Single-trace",
+        measures="Cosine of the instantaneous phase, which removes the wrap at +-180 degrees and gives a trace of constant amplitude.",
+        geology="Shows reflector continuity and geometry independent of amplitude, often used to trace horizons through weak or dim zones.",
+        source="Taner, Koehler and Sheriff (1979)."),
+    "quadrature_trace": dict(label="Quadrature trace (Hilbert transform)", unit="relative", cmap="gray", family="Single-trace",
+        measures="Hilbert transform of the seismic trace: the trace rotated by 90 degrees in phase. Together with the trace it forms the complex trace.",
+        geology="Peaks and troughs fall at zero crossings of the seismic trace, which can help with thin beds and with picking where the seismic trace crosses zero.",
         source="Taner, Koehler and Sheriff (1979)."),
     "sweetness": dict(label="Sweetness", unit="relative", cmap="magma", family="Single-trace",
         measures="Envelope divided by the square root of instantaneous frequency.",
@@ -82,6 +94,10 @@ HORIZON_STYLE = {
     "Bosscheveld Formation": dict(label="Top Bosscheveld Fm", color="#c9184a"),
 }
 
+SIGNED = {"amplitude_volume_transform", "quadrature_trace", "relative_acoustic_impedance", "far_minus_near",
+          "full_stack_amplitude", "near_stack_amplitude", "mid_stack_amplitude", "far_stack_amplitude"}
+LUT_CHOICES = {"gray": "Grayscale", "RdBu_r": "Red–white–blue", "viridis": "Viridis", "magma": "Magma", "cividis": "Cividis", "twilight": "Twilight (cyclic)"}
+
 def lut(name):
     return (colormaps[name](np.linspace(0, 1, 256))[:, :3] * 255).round().astype(int).tolist()
 
@@ -97,7 +113,9 @@ def main():
     attrs = {}
     for k, m in ATTRIBUTES.items():
         v = A[k][:, t0:t1:C.ATT_TSTEP]; lo, hi = (float(x) for x in np.percentile(v, [1, 99]))
-        if m["cmap"] == "RdBu_r": hi = max(abs(lo), abs(hi)); lo = -hi
+        if m["cmap"] in ("RdBu_r", "twilight") or k in SIGNED: hi = max(abs(lo), abs(hi)); lo = -hi
+        if k == "instantaneous_phase": lo, hi = -180.0, 180.0
+        if k == "cos_instantaneous_phase": lo, hi = -1.0, 1.0
         np.clip(np.round((v - lo) / (hi - lo) * 255), 0, 255).astype(np.uint8).tofile(C.DATA / f"attr_{k}.bin")
         attrs[k] = dict(m, min=round(lo, 4), max=round(hi, 4), lut=lut(m["cmap"]))
     meta = dict(
@@ -117,7 +135,7 @@ def main():
                   tops=[dict(unit=t["unit"], md=t["md"], tvdss=round(t["tvdss"], 1), km=round(t["km"], 4), twt=round(t["twt"], 4), offset_m=round(t["offset_m"])) for t in well["tops"]],
                   depth_axis=well["depth_axis"]),
         horizons=dict(km=[round(x, 4) for x in hz["km"]], items=[dict(unit=u, **HORIZON_STYLE[u], **hz["horizons"][u]) for u in HORIZON_STYLE]),
-        units=UNITS, attributes=attrs,
+        units=UNITS, attributes=attrs, luts={k: dict(label=v, lut=lut(k)) for k, v in LUT_CHOICES.items()},
     )
     json.dump(meta, open(C.DATA / "meta.json", "w"), separators=(",", ":"))
     print("clip", clip, "files:", sorted(p.name for p in C.DATA.iterdir()))

@@ -17,6 +17,10 @@ def main():
     fi = (x * np.gradient(y, axis=1) - y * np.gradient(x, axis=1)) / (x * x + y * y + 1e-9) / (2 * np.pi * C.DT)
     A["envelope"] = uniform_filter(env, W)
     A["instantaneous_frequency"] = np.clip(uniform_filter(fi * env ** 2, W) / (uniform_filter(env ** 2, W) + 1e-9), 0, 125)
+    # phase attributes are not averaged, because averaging phase across its +-180 degree wrap has no physical meaning
+    A["instantaneous_phase"] = np.degrees(np.angle(an))
+    A["cos_instantaneous_phase"] = np.cos(np.angle(an))
+    A["quadrature_trace"] = np.imag(an)
     A["sweetness"] = A["envelope"] / np.sqrt(np.clip(A["instantaneous_frequency"], 5, None))
 
     def band(lo, hi):

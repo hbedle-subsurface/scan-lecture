@@ -23,23 +23,28 @@ self.onmessage = (e) => {
   if (m.type === "explain") explain(m.index);
 };
 
-function run({ attrs, nx, nt, side, seed }) {
+function run({ attrs, nx, nt, side, seed, win }) {
   const M = attrs.length, N = side * side, n = nx * nt, rand = rng(seed);
+  // training and classification window: traces i0..i1, samples j0..j1
+  const { i0, i1, j0, j1 } = win || { i0: 0, i1: nx - 1, j0: 0, j1: nt - 1 };
+  const wnx = i1 - i0 + 1, wnt = j1 - j0 + 1, nWin = wnx * wnt;
+  const randIndex = () => (i0 + Math.floor(rand() * wnx)) * nt + j0 + Math.floor(rand() * wnt);
   const post = (stage, frac) => self.postMessage({ type: "progress", stage, frac });
 
-  // dequantize and z-score over the whole window
+  // dequantize, and z-score over the chosen window
   post("Preparing attributes", 0);
   const X = new Float32Array(n * M), mean = new Float64Array(M), sd = new Float64Array(M);
   attrs.forEach((a, j) => {
     const scale = (a.max - a.min) / 255; let s = 0, s2 = 0;
-    for (let i = 0; i < n; i++) { const v = a.min + a.data[i] * scale; X[i * M + j] = v; s += v; s2 += v * v; }
-    mean[j] = s / n; sd[j] = Math.sqrt(Math.max(s2 / n - mean[j] ** 2, 1e-12));
+    for (let i = 0; i < n; i++) X[i * M + j] = a.min + a.data[i] * scale;
+    for (let ti = i0; ti <= i1; ti++) for (let tj = j0; tj <= j1; tj++) { const v = X[(ti * nt + tj) * M + j]; s += v; s2 += v * v; }
+    mean[j] = s / nWin; sd[j] = Math.sqrt(Math.max(s2 / nWin - mean[j] ** 2, 1e-12));
     for (let i = 0; i < n; i++) X[i * M + j] = (X[i * M + j] - mean[j]) / sd[j];
   });
 
   // training sample
   const nTrain = 20000, train = new Int32Array(nTrain);
-  for (let k = 0; k < nTrain; k++) train[k] = Math.floor(rand() * n);
+  for (let k = 0; k < nTrain; k++) train[k] = randIndex();
 
   // correlation between the chosen attributes (for the redundancy panel)
   const corr = Array.from({ length: M }, () => new Float64Array(M));
@@ -85,13 +90,14 @@ function run({ attrs, nx, nt, side, seed }) {
   }
 
   // classify every sample
-  const bmu = new Uint8Array(n), hits = new Float64Array(N), qe = []; const W2 = new Float32Array(N);
+  const bmu = new Uint8Array(n).fill(255), hits = new Float64Array(N), qe = []; const W2 = new Float32Array(N);
   for (let k = 0; k < N; k++) { let s = 0; for (let j = 0; j < M; j++) s += W[k * M + j] ** 2; W2[k] = s; }
-  for (let i = 0; i < n; i++) {
-    let best = 0, bd = Infinity;
+  let count = 0;
+  for (let ti = i0; ti <= i1; ti++) for (let tj = j0; tj <= j1; tj++) {
+    const i = ti * nt + tj; let best = 0, bd = Infinity;
     for (let k = 0; k < N; k++) { let dot = 0; for (let j = 0; j < M; j++) dot += X[i * M + j] * W[k * M + j]; const d = W2[k] - 2 * dot; if (d < bd) { bd = d; best = k; } }
     bmu[i] = best; hits[best]++;
-    if (i % 200000 === 0) post("Classifying the section", i / n);
+    if (++count % 200000 === 0) post("Classifying the window", count / nWin);
   }
 
   // softness of the explained grid position: median squared distance to the best-matching neuron
@@ -100,12 +106,12 @@ function run({ attrs, nx, nt, side, seed }) {
   const tau = Math.max(qe[qe.length >> 1], 1e-3);
 
   S = { X, W, M, N, side, tau, train, rand, nTrain };
-  self.postMessage({ type: "map", bmu, hits: Array.from(hits, (h) => h / n), corr: corr.map((r) => Array.from(r)), qe: Math.sqrt(tau) });
+  self.postMessage({ type: "map", bmu, hits: Array.from(hits, (h) => h / nWin), corr: corr.map((r) => Array.from(r)), qe: Math.sqrt(tau) });
 
   // global SHAP importance on 400 random samples
   const nS = 400, P = 8, imp = new Float64Array(M), impX = new Float64Array(M), impY = new Float64Array(M);
   for (let s = 0; s < nS; s++) {
-    const { phi } = shapFor(Math.floor(rand() * n), P);
+    const { phi } = shapFor(randIndex(), P);
     for (let j = 0; j < M; j++) { imp[j] += Math.hypot(phi[j][0], phi[j][1]); impX[j] += Math.abs(phi[j][0]); impY[j] += Math.abs(phi[j][1]); }
     if (s % 50 === 0) post("Computing SHAP values", s / nS);
   }

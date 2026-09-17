@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const ZOOMS = { full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0] };
+  const ZOOMS = { full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0], custom: [0.0, 48.5] };
   const MARGIN = { l: 58, r: 66, t: 70, b: 42 };   // top margin holds the labels, above the seismic
   const KEY_TOPS = new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
     "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]);
@@ -12,14 +12,15 @@
     impedance: ["Acoustic impedance", "Density multiplied by P-wave velocity. A reflection forms where impedance changes across a boundary; the size and sign of the change set the reflection amplitude and polarity."],
     som: ["Self-organizing map (SOM)", "An unsupervised neural network that arranges prototype vectors on a 2D grid so that similar attribute combinations sit near each other (Kohonen, 1982). Each sample is assigned to its closest prototype, and here the prototypes are grouped into 8 classes."],
     neuron: ["Neuron", "One prototype on the SOM grid: a vector with one value per attribute. Each sample is assigned to the neuron whose prototype is closest to its attribute values, after each attribute is converted to standard deviations from its mean."],
+    polarity: ["Polarity", "The SCAN029 data are zero phase, and the processing header states that an increase in acoustic impedance is recorded as a negative number. A boundary where impedance increases downward, such as shale over limestone, is therefore a trough."],
     zscore: ["Standard deviations", "Each attribute is rescaled by subtracting its mean and dividing by its standard deviation over the whole window, so attributes with different units can be compared."],
     shap: ["SHAP values", "Shapley additive explanations (Lundberg and Lee, 2017). For one sample, each attribute receives the change it makes to the model output, averaged over the orders in which attributes can be added. Here the output is the sample's position on the SOM grid, which sets its color. The average position of all samples plus every attribute's SHAP value gives the sample's position. Values are estimated from random attribute orderings (Strumbelj and Kononenko, 2014)."],
   };
 
   const state = {
-    stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: true, showInterp: true, hideControl: false,
+    stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -36,7 +37,7 @@
   const makeCanvas = (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h });
   const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const fmt = (x) => (Math.abs(x) >= 100 ? x.toFixed(0) : Math.abs(x) >= 1 ? x.toFixed(1) : x.toFixed(2));
-  const shortName = (f) => ({ full_stack_amplitude: "Full amp.", near_stack_amplitude: "Near amp.", mid_stack_amplitude: "Mid amp.", far_stack_amplitude: "Far amp.", relative_acoustic_impedance: "Rel. AI", amplitude_volume_transform: "AVT", envelope: "Envelope", sweetness: "Sweetness", rms_amplitude: "RMS amp.", instantaneous_frequency: "Inst. freq.", spectral_ratio: "Spec. ratio",
+  const shortName = (f) => ({ instantaneous_phase: "Inst. phase", cos_instantaneous_phase: "Cos phase", quadrature_trace: "Quadrature", full_stack_amplitude: "Full amp.", near_stack_amplitude: "Near amp.", mid_stack_amplitude: "Mid amp.", far_stack_amplitude: "Far amp.", relative_acoustic_impedance: "Rel. AI", amplitude_volume_transform: "AVT", envelope: "Envelope", sweetness: "Sweetness", rms_amplitude: "RMS amp.", instantaneous_frequency: "Inst. freq.", spectral_ratio: "Spec. ratio",
     apparent_dip: "Dip", dip_variability: "Dip var.", coherence: "Coherence", far_minus_near: "Far − near" }[f] || f);
 
   /* ---------- rasters ---------- */
@@ -48,7 +49,13 @@
     }
     ctx.putImageData(img, 0, 0); return c;
   }
-  const grayAt = (i, j) => { const g = Math.max(0, Math.min(255, 128 - section[i * meta.nt + j] * 1.6)); return [g, g, g]; };
+  // In this dataset an increase in acoustic impedance is a negative number (zero-phase data, processing header).
+  const SEIS_MAPS = {
+    gray_black: { label: "Grayscale, impedance increase black", f: (v) => { const g = Math.max(0, Math.min(255, 128 + v * 1.6)); return [g, g, g]; } },
+    gray_white: { label: "Grayscale, impedance increase white", f: (v) => { const g = Math.max(0, Math.min(255, 128 - v * 1.6)); return [g, g, g]; } },
+    red_blue: { label: "Red–white–blue, impedance increase red", f: (v) => { const u = Math.max(-1, Math.min(1, v / 80)), e = u < 0 ? [178, 24, 43] : [33, 102, 172], t = Math.abs(u); return [247, 247, 247].map((x, k) => Math.round(x + (e[k] - x) * t)); } },
+  };
+  const grayAt = (i, j) => SEIS_MAPS[state.seisMap].f(section[i * meta.nt + j]);
   const DIVERGING = (() => { // blue - off-white - red
     const a = [49, 99, 173], b = [247, 244, 236], r = [190, 45, 40];
     return Array.from({ length: 256 }, (_, k) => { const u = k / 127.5 - 1, e = u < 0 ? a : r, t = Math.abs(u); return b.map((x, i) => Math.round(x + (e[i] - x) * t)); });
@@ -56,13 +63,17 @@
 
   async function buildOverlay() {
     const s = state.stage, g = meta.grid, nt = g.nt, tg = [meta.t_min - g.dt / 2, meta.t_min + (nt - 0.5) * g.dt];
-    if (s === 2) {
-      const d = await loadBin(`attr_${state.attr}.bin`, Uint8Array), lut = meta.attributes[state.attr].lut;
+    if (s === 3) {
+      const d = await loadBin(`attr_${state.attr}.bin`, Uint8Array), lut = state.attrLut === "default" ? meta.attributes[state.attr].lut : meta.luts[state.attrLut].lut;
       return { img: raster(g.nx, nt, (i, j) => lut[d[i * nt + j]]), km: [g.km_min, g.km_max], t: tg };
     }
-    if (s >= 3 && run()) {
+    if (s >= 4 && run()) {
       const r = run(), cols = neuronColors(r.side);
-      return { img: raster(g.nx, nt, (i, j) => cols[r.bmu[i * nt + j]]), km: [g.km_min, g.km_max], t: tg };
+      const img = raster(g.nx, nt, (i, j) => { const k = r.bmu[i * nt + j]; return k === 255 ? [0, 0, 0] : cols[k]; });
+      const cctx = img.getContext("2d"), id = cctx.getImageData(0, 0, g.nx, nt);
+      for (let i = 0; i < g.nx; i++) for (let j = 0; j < nt; j++) if (r.bmu[i * nt + j] === 255) id.data[(j * g.nx + i) * 4 + 3] = 0;
+      cctx.putImageData(id, 0, 0);
+      return { img, km: [g.km_min, g.km_max], t: tg };
     }
     return null;
   }
@@ -138,14 +149,17 @@
     cx.clearRect(0, 0, W, H); cx.fillStyle = "#111"; cx.fillRect(0, 0, W, H);
     drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
     const s = state.stage, control = !(s === 1 && state.hideControl);
-    if (s === 1 && state.showUnits && control) drawUnits(false);
-    if (overlay && s > 1) drawRaster(overlay, { 2: state.attrOpacity, 3: state.somOpacity, 4: state.somOpacity, 5: state.verdictOpacity }[s]);
+    if (((s === 1 && state.showUnits) || (s === 2 && state.showGeoColumns)) && control) drawWellColumns();
+    if (overlay && s > 2) drawRaster(overlay, { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.verdictOpacity }[s]);
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && state.showWell) drawWell();
     drawSomerenLimits();
     if (s === 1) drawTraceMarker();
     if (s === 1 && PICK_MODE) drawPicks();
-    if (s === 4 && state.sample) drawSampleMarker();
+    if (s === 5 && state.sample) drawSampleMarker();
+    if (s === 2) drawGeologyOverlay();
+    if (s >= 4 && run()) { const w = run().window; cx.save(); clipPlot(); cx.setLineDash([10, 5]); cx.strokeStyle = "#ffffff"; cx.lineWidth = 1.5;
+      cx.strokeRect(X(w.km[0]), Y(w.t[0]), X(w.km[1]) - X(w.km[0]), Y(w.t[1]) - Y(w.t[0])); cx.restore(); }
     drawAxes(control);
     renderTopLabels();
   }
@@ -153,6 +167,58 @@
   const PICK_HALF_KM = 0.6;   // horizons are drawn as short picks this far either side of the well top
   const topKm = (unit) => { const t = meta.well.tops.find((x) => x.unit === unit); return t ? t.km : null; };
   const nearPick = (h, i) => h.picked || (topKm(h.unit) != null && Math.abs(meta.horizons.km[i] - topKm(h.unit)) <= PICK_HALF_KM);
+
+  /* ---------- formation groups beside each well, after the scheme of Doornenbal et al. (2019, fig. 4) ---------- */
+  const GROUPS = {
+    N: { name: "North Sea Supergroup (Cenozoic)", color: "#f2d46b" },
+    NU: { name: "Upper North Sea Group (Miocene–Quaternary)", color: "#f7e39a" },
+    NM: { name: "Middle North Sea Group (Oligocene)", color: "#f2c94c" },
+    NL: { name: "Lower North Sea Group (Paleocene–Eocene)", color: "#e0a93b" },
+    CK: { name: "Chalk Group (Late Cretaceous–Danian)", color: "#9bd18b" },
+    "ZE+RB": { name: "Zechstein and Lower Germanic Trias groups (Permian–Triassic)", color: "#a88bd1" },
+    DC: { name: "Limburg Group (Namurian, Upper Carboniferous)", color: "#8ec9ea" },
+    CL: { name: "Carboniferous Limestone Group (Dinantian)", color: "#7d8fa3" },
+    OB: { name: "Banjaard Group (Devonian–?Dinantian)", color: "#b8906f" },
+  };
+  const WELL_GROUPS = {
+    "CAL-GT-04": [["N", "Upper North Sea Group"], ["CK", "Houthem Formation"], ["ZE+RB", "Nederweert Sandstone Member"], ["DC", "Epen Formation"], ["CL", "Zeeland Formation"], ["OB", "Bosscheveld Formation"]],
+    "CAL-GT-01": [["N", "Kieseloolite Formation"], ["CK", "Houthem Formation"], ["ZE+RB", "Nederweert Sandstone Member"], ["DC", "Epen Formation"], ["CL", "Zeeland Formation"]],
+    "ASTEN-GT-02": [["NU", "Veghel Formation"], ["NM", "Veldhoven Clay Member"], ["NL", "Basal Dongen Sand Member"], ["CK", "Houthem Formation"]],
+  };
+  function drawWellColumns() {
+    const half = 0.45; cx.save(); clipPlot();
+    for (const wl of (meta.wells || []).filter((w) => !state.hiddenWells.has(w.name) && WELL_GROUPS[w.name])) {
+      const gs = WELL_GROUPS[wl.name], last = wl.path[wl.path.length - 1];
+      gs.forEach(([code, unit], i) => {
+        const top = wl.tops.find((t) => t.unit === unit); if (!top) return;
+        const nxt = i + 1 < gs.length ? wl.tops.find((t) => t.unit === gs[i + 1][1]) : last;
+        const t0 = Math.max(top.twt, meta.t_min), k0 = top.km, t1 = nxt.twt, k1 = nxt.km;
+        cx.beginPath(); cx.moveTo(X(k0 - half), Y(t0)); cx.lineTo(X(k0 + half), Y(t0)); cx.lineTo(X(k1 + half), Y(t1)); cx.lineTo(X(k1 - half), Y(t1)); cx.closePath();
+        cx.globalAlpha = 0.45; cx.fillStyle = GROUPS[code].color; cx.fill(); cx.globalAlpha = 1;
+        const xm = (X(k0) + X(k1)) / 2, ym = (Y(t0) + Y(t1)) / 2;
+        if (Y(t1) - Y(t0) > 14 && X(k0 + half) - X(k0 - half) > 26) { cx.font = "700 11px Barlow, Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle"; cx.fillStyle = "#10151a"; cx.fillText(code, xm, ym); }
+      });
+    }
+    cx.restore();
+  }
+
+  /* ---------- geologic background: structural domains and events along the line ---------- */
+  const DOMAINS = [
+    { km: [0.0, 16.5], name: "Roer Valley Graben", color: "#f2c94c" },
+    { km: [16.5, 18.5], name: "Peel Boundary Fault zone (approx.)", color: "#e76f51" },
+    { km: [18.5, 48.5], name: "Peel Block (horst) and Venlo Block", color: "#8ec9ea" },
+  ];
+  function drawGeologyOverlay() {
+    const y = MARGIN.t - 7;
+    for (const d of DOMAINS) {
+      const a = Math.max(X(d.km[0]), MARGIN.l), b = Math.min(X(d.km[1]), W - MARGIN.r); if (b <= a) continue;
+      cx.fillStyle = d.color; cx.fillRect(a, y, b - a, 6);
+      topLabel((a + b) / 2, d.name, d.color, "#10151a");
+    }
+    const f = state.geoFocus; if (!f) return;
+    cx.save(); clipPlot(); cx.strokeStyle = "#ffd166"; cx.lineWidth = 2.5; cx.setLineDash([8, 5]);
+    cx.strokeRect(X(f.km[0]), Y(f.t[0]), X(f.km[1]) - X(f.km[0]), Y(f.t[1]) - Y(f.t[0])); cx.restore();
+  }
 
   function drawSomerenLimits() {
     const [a, b] = meta.someren.km; cx.save(); clipPlot();
@@ -336,7 +402,7 @@
 
   function drawColorbar() {
     const a = meta.attributes[state.attr], c = $("#colorbar"), g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height);
-    a.lut.forEach((col, i) => { g.fillStyle = `rgb(${col})`; g.fillRect(i / 256 * c.width, 0, c.width / 256 + 1, 20); });
+    (state.attrLut === "default" ? a.lut : meta.luts[state.attrLut].lut).forEach((col, i) => { g.fillStyle = `rgb(${col})`; g.fillRect(i / 256 * c.width, 0, c.width / 256 + 1, 20); });
     g.fillStyle = "#1f1d18"; g.font = "12px Barlow, Arial, sans-serif"; g.textBaseline = "top";
     g.textAlign = "left"; g.fillText(fmt(a.min), 0, 24); g.textAlign = "right"; g.fillText(fmt(a.max), c.width, 24); g.textAlign = "center"; g.fillText(a.unit, c.width / 2, 24);
     $("#attrMeasures").textContent = a.measures; $("#attrGeology").textContent = a.geology; $("#attrSource").textContent = a.source;
@@ -366,16 +432,16 @@
   const run = () => state.runs[state.current] || null;
 
   async function refresh() {
-    const r = run(), key = state.stage === 1 ? "" : state.stage === 2 ? `a:${state.attr}` : `s:${r ? r.id : "none"}`;
+    const r = run(), key = state.stage <= 2 ? "" : state.stage === 3 ? `a:${state.attr}:${state.attrLut}` : `s:${r ? r.id : "none"}`;
     if (key !== overlayKey) { overlay = key && !key.endsWith("none") ? await buildOverlay() : null; overlayKey = key; }
     drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); drawShapGlobal(); drawShapSample();
     draw();
   }
 
-  function setZoom(z) { state.zoom = z; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
+  function setZoom(z) { state.zoom = z; if (z !== "custom") state.geoFocus = null; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
   function setStage(n) {
     state.stage = n;
-    if (n === 5) setZoom("someren");
+    if (n === 6) setZoom("someren");
     $$(".tag").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.stage === n)));
     $$(".card").forEach((c) => (c.hidden = +c.dataset.for !== n));
     refresh();
@@ -433,7 +499,7 @@
     state.runs.forEach((r, i) => {
       const b = document.createElement("button"); b.setAttribute("aria-pressed", String(i === state.current));
       const top = r.importance ? r.features.map((f, j) => [f, r.importance[j]]).sort((a, c) => c[1] - a[1]).slice(0, 2).map(([f]) => shortName(f)).join(", ") : "SHAP running";
-      b.innerHTML = `Run ${i + 1}: ${r.features.length} attributes, ${r.side * r.side} neurons<small>${r.features.map(shortName).join(", ")}</small><small>Largest SHAP: ${top}</small>`;
+      b.innerHTML = `Run ${i + 1}: ${r.features.length} attributes, ${r.side * r.side} neurons<small>${r.window.km[0].toFixed(1)}–${r.window.km[1].toFixed(1)} km, ${r.window.t[0].toFixed(2)}–${r.window.t[1].toFixed(2)} s</small><small>${r.features.map(shortName).join(", ")}</small><small>Largest SHAP: ${top}</small>`;
       b.addEventListener("click", () => { state.current = i; state.sample = null; state.explained = null; drawRunLog(); drawRedundancy(); refresh(); });
       el.append(b);
     });
@@ -471,8 +537,21 @@
   function requestExplain() {
     const r = run(); if (!r || !state.sample || !worker || state.current !== state.runs.length - 1) { if (r && state.current !== state.runs.length - 1) $("#sampleTitle").textContent = "Samples can be explained for the most recent run"; return; }
     const g = meta.grid, gi = Math.round((state.sample.km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.min(g.nt - 1, Math.round((state.sample.t - meta.t_min) / g.dt));
+    const w = run().window.win; if (gi < w.i0 || gi > w.i1 || j < w.j0 || j > w.j1) { $("#sampleTitle").textContent = "That sample is outside the SOM window"; return; }
     $("#sampleTitle").textContent = "Computing SHAP values for the sample…";
     worker.postMessage({ type: "explain", index: gi * g.nt + j });
+  }
+
+  function wireGeology() {
+    $$("[data-geo]").forEach((b) => b.addEventListener("click", () => {
+      const [k0, k1, t0, t1] = b.dataset.geo.split(",").map(Number);
+      ZOOMS.custom = [Math.max(0, k0 - 1.5), Math.min(48.5, k1 + 1.5)]; setZoom("custom");
+      state.geoFocus = { km: [k0, k1], t: [t0, t1] };
+      $$("[data-geo]").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); draw();
+    }));
+    $("#geoColumns").addEventListener("change", (e) => { state.showGeoColumns = e.target.checked; draw(); });
+    const leg = $("#groupLegend");
+    for (const [code, g] of Object.entries(GROUPS)) leg.insertAdjacentHTML("beforeend", `<div class="grp"><span style="background:${g.color}">${code}</span>${g.name}</div>`);
   }
 
   function wireWellChips() {
@@ -483,7 +562,7 @@
       b.addEventListener("click", () => { state.hiddenWells.has(w.name) ? state.hiddenWells.delete(w.name) : state.hiddenWells.add(w.name); b.setAttribute("aria-pressed", String(!state.hiddenWells.has(w.name))); draw(); });
       box.append(b);
     }
-    for (const [key, text, color] of [["showKarst", "Karst zones ◆", "#4cc9f0"], ["showFault", "Tegelen fault zone", "#e63946"]]) {
+    for (const [key, text, color] of [["showKarst", "Karst zones ◆", "#4cc9f0"]]) {
       const c = document.createElement("button"); c.textContent = text; c.setAttribute("aria-pressed", "true"); c.style.setProperty("--chip", color);
       c.addEventListener("click", () => { state[key] = !state[key]; c.setAttribute("aria-pressed", String(state[key])); draw(); });
       box.append(c);
@@ -506,12 +585,18 @@
     $("#runSom").addEventListener("click", async () => {
       const feats = $$("#attrChecks input:checked").map((x) => x.value);
       if (feats.length < 2) { $("#progress").hidden = false; $("#progressText").textContent = "Choose at least two attributes."; return; }
-      const side = +$("#neurons").value;
+      const side = +$("#neurons").value, g = meta.grid;
+      const kmRange = { full: [meta.km_min, meta.km_max], someren: ZOOMS.someren, well: ZOOMS.well, view: ZOOMS[state.zoom] }[$("#somArea").value];
+      let tTop = +$("#somTop").value, tBase = +$("#somBase").value; if (tBase <= tTop + 0.1) tBase = tTop + 0.1;
+      const toI = (k) => Math.max(0, Math.min(g.nx - 1, Math.round((k - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1))));
+      const toJ = (t) => Math.max(0, Math.min(g.nt - 1, Math.round((t - meta.t_min) / g.dt)));
+      const win = { i0: toI(kmRange[0]), i1: toI(kmRange[1]), j0: toJ(tTop), j1: toJ(tBase) };
       $("#runSom").disabled = true; state.busy = true; $("#progress").hidden = false; $("#progressText").textContent = "Loading attributes";
       const attrs = [];
       for (const f of feats) { const d = await loadBin(`attr_${f}.bin`, Uint8Array); attrs.push({ key: f, data: d.slice(), min: meta.attributes[f].min, max: meta.attributes[f].max }); }
       worker?.terminate(); worker = new Worker("js/som-worker.js");
-      const rec = { id: Date.now(), features: feats, side, bmu: null, hits: null, corr: null, importance: null };
+      const rec = { id: Date.now(), features: feats, side, bmu: null, hits: null, corr: null, importance: null,
+        window: { km: [Math.max(kmRange[0], meta.km_min), Math.min(kmRange[1], meta.km_max)], t: [tTop, tBase], win } };
       worker.onmessage = (e) => {
         const m = e.data;
         if (m.type === "progress") { $("#progressBar").style.width = `${Math.round(m.frac * 100)}%`; $("#progressText").textContent = m.stage; }
@@ -523,7 +608,7 @@
         if (m.type === "importance") { rec.importance = m.importance; $("#progress").hidden = true; drawRunLog(); drawShapGlobal(); }
         if (m.type === "explain") { state.explained = { run: rec.id, ...m }; drawShapSample(); }
       };
-      worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.grid.nt, side, seed: 7 }, attrs.map((a) => a.data.buffer));
+      worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.grid.nt, side, seed: 7, win }, attrs.map((a) => a.data.buffer));
     });
   }
 
@@ -536,10 +621,17 @@
       aSel.append(og);
     }
     aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); refresh(); });
+    const lSel = $("#attrLut");
+    lSel.append(Object.assign(document.createElement("option"), { value: "default", textContent: "Default for this attribute" }));
+    for (const [k, v] of Object.entries(meta.luts)) lSel.append(Object.assign(document.createElement("option"), { value: k, textContent: v.label }));
+    lSel.addEventListener("change", () => { state.attrLut = lSel.value; drawColorbar(); refresh(); });
+    const sSel = $("#seisMap");
+    for (const [k, v] of Object.entries(SEIS_MAPS)) sSel.append(Object.assign(document.createElement("option"), { value: k, textContent: v.label }));
+    sSel.addEventListener("change", () => { state.seisMap = sSel.value; baseImg = raster(meta.section.nx, meta.nt, grayAt); draw(); });
 
     $$(".tag").forEach((b) => b.addEventListener("click", () => setStage(+b.dataset.stage)));
     $$("[data-zoom]").forEach((b) => b.addEventListener("click", () => { setZoom(b.dataset.zoom); draw(); }));
-    for (const [id, key] of [["#showWell", "showWell"], ["#showUnits", "showUnits"], ["#showInterp", "showInterp"], ]) $(id).addEventListener("change", (e) => { state[key] = e.target.checked; draw(); });
+    for (const [id, key] of [["#showWell", "showWell"], ["#showUnits", "showUnits"]]) $(id).addEventListener("change", (e) => { state[key] = e.target.checked; draw(); });
     const hBoxes = [$("#showHorizons"), ...$$(".syncHorizons")];
     hBoxes.forEach((box) => box.addEventListener("change", (e) => { state.showHorizons = e.target.checked; hBoxes.forEach((b) => (b.checked = state.showHorizons)); draw(); }));
     $("#hideWellControl").addEventListener("click", (e) => {
@@ -556,8 +648,8 @@
       const g = meta.grid, gi = Math.round((km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.min(g.nt - 1, Math.round((t - meta.t_min) / g.dt));
       let txt = `${km.toFixed(2)} km, ${t.toFixed(3)} s`;
       const attr = cache[`attr_${state.attr}.bin`], rr = run();
-      if (state.stage === 2 && attr && gi >= 0 && gi < g.nx) { const a = meta.attributes[state.attr]; txt += `, ${a.label} ${fmt(a.min + attr[gi * g.nt + j] / 255 * (a.max - a.min))} ${a.unit}`; }
-      if (state.stage >= 3 && rr && gi >= 0 && gi < g.nx) { const k = rr.bmu[gi * g.nt + j]; txt += `, neuron row ${Math.floor(k / rr.side) + 1}, column ${k % rr.side + 1}`; }
+      if (state.stage === 3 && attr && gi >= 0 && gi < g.nx) { const a = meta.attributes[state.attr]; txt += `, ${a.label} ${fmt(a.min + attr[gi * g.nt + j] / 255 * (a.max - a.min))} ${a.unit}`; }
+      if (state.stage >= 4 && rr && gi >= 0 && gi < g.nx && rr.bmu[gi * g.nt + j] !== 255) { const k = rr.bmu[gi * g.nt + j]; txt += `, neuron row ${Math.floor(k / rr.side) + 1}, column ${k % rr.side + 1}`; }
       $("#readout").textContent = txt;
     });
     cv.addEventListener("click", (e) => {
@@ -565,7 +657,7 @@
       if (km < v.kmA || km > v.kmB || t < meta.t_min || t > meta.t_max) return;
       if (state.stage === 1 && PICK_MODE) return pickAt(km, t, e.shiftKey);
       if (state.stage === 1) { state.traceKm = km; drawWiggle(); draw(); }
-      if (state.stage === 4 && run()) { state.sample = { km, t }; requestExplain(); draw(); }
+      if (state.stage === 5 && run()) { state.sample = { km, t }; requestExplain(); draw(); }
     });
 
     const gl = $("#glossary");
@@ -624,7 +716,7 @@
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
-    wire(); wireWellChips(); wireBuilder(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
+    wire(); wireWellChips(); wireGeology(); wireBuilder(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
   }
   init();
 })();

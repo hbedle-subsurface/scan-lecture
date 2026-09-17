@@ -17,15 +17,16 @@
     <p>From the Californië geothermal wells to the Someren prospect, southeastern Netherlands</p>
   </div>
   <div class="job" aria-label="Exploration context">
-    <p><strong>Someren license:</strong> candidate aquifers are the Cenozoic sands tested in ASTEN-GT-02 (1987): the Breda Formation, the Voort Sand of the Veldhoven Formation, the Basal Dongen Sand and the Houthem Formation.</p>
-    <p><strong>Californië wells:</strong> warm water is produced from the Dinantian carbonate of the Zeeland Formation, through karst and the Tegelen fault zone.</p>
+    <p><strong>Someren license:</strong> candidate aquifers are the Cenozoic sands tested in ASTEN-GT-02 (1987): the Breda Formation, the Voort Sand of the Veldhoven Formation, the Basal Dongen Sand and the Houthem Formation, with potential for deeper geothermal below the Cenozoic section.</p>
+    <p><strong>Californië wells:</strong> warm water is produced from the karstified Dinantian carbonate of the Zeeland Formation.</p>
   </div>
   <nav class="stages" aria-label="Stages">
     <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
-    <button class="tag" data-stage="2"><span>2</span>Attributes</button>
-    <button class="tag" data-stage="3"><span>3</span>Build a SOM</button>
-    <button class="tag" data-stage="4"><span>4</span>SHAP</button>
-    <button class="tag" data-stage="5"><span>5</span>Someren prospect</button>
+    <button class="tag" data-stage="2"><span>2</span>Geologic setting</button>
+    <button class="tag" data-stage="3"><span>3</span>Attributes</button>
+    <button class="tag" data-stage="4"><span>4</span>Build a SOM</button>
+    <button class="tag" data-stage="5"><span>5</span>SHAP</button>
+    <button class="tag" data-stage="6"><span>6</span>Someren prospect</button>
   </nav>
 </header>
 
@@ -37,6 +38,7 @@
         <button data-zoom="someren" aria-pressed="false">Someren area</button>
         <button data-zoom="well" aria-pressed="false">Californië wells</button>
       </div>
+      <label class="seis">Seismic <select id="seisMap"></select> <button class="term" data-term="polarity">polarity</button></label>
       <div class="chips" id="wellChips" role="group" aria-label="Wells shown"></div>
       <div class="readout" id="readout">Move over the section to read position and values. Click to show a trace.</div>
     </div>
@@ -50,8 +52,7 @@
       <fieldset>
         <label><input type="checkbox" id="showWell" checked> Wells</label>
         <label><input type="checkbox" id="showHorizons" checked> Formation picks</label>
-        <label><input type="checkbox" id="showUnits" checked> Formation shading</label>
-        <label><input type="checkbox" id="showInterp" checked> Interpolated pick segments</label>
+        <label><input type="checkbox" id="showUnits"> Formation group shading</label>
       </fieldset>
       <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
       <div class="pick" id="pickPanel" hidden>
@@ -68,12 +69,32 @@
       </div>
     </div>
 
-    <!-- Stage 2 -->
+    <!-- Geologic setting -->
     <div class="card" data-for="2" hidden>
+      <h2>Geologic setting</h2>
+      <p class="small">Each event zooms to where it can be seen on SCAN029.</p>
+      <div class="events">
+        <button data-geo="33.3,35.3,0.85,1.10" aria-pressed="false"><b>Carboniferous → Permian</b><small>Variscan uplift and erosion; Zechstein rests on Namurian shale at Californië (Base Permian unconformity)</small></button>
+        <button data-geo="33.8,35.3,0.70,0.82" aria-pressed="false"><b>Late Cretaceous</b><small>Inversion of the Roer Valley Graben; at Californië, Maastricht chalk rests on the Lower Buntsandstein</small></button>
+        <button data-geo="10.5,14.5,1.30,1.55" aria-pressed="false"><b>Paleocene–Eocene → Oligocene</b><small>Erosion at the base of the Oligocene; Berg (Vessem) sand rests on Basal Dongen Sand in ASTEN-GT-02</small></button>
+        <button data-geo="12.0,22.0,0.30,1.60" aria-pressed="false"><b>Late Oligocene → present</b><small>Graben subsidence along the Peel Boundary Fault, with up to 1000 m of throw and up to 2000 m of Cenozoic fill</small></button>
+        <button data-geo="33.3,35.3,1.10,1.60" aria-pressed="false"><b>Dinantian</b><small>Carbonate platform; karst and fracture permeability produce warm water at Californië</small></button>
+      </div>
+      <label><input type="checkbox" id="geoColumns" checked> Formation groups at the wells</label>
+      <div id="groupLegend" class="legend-groups"></div>
+      <figure class="ref">
+        <a href="img/doornenbal2019_fig4.png" target="_blank" rel="noopener"><img src="img/doornenbal2019_fig4.png" alt="Interpreted west–east seismic line L2CAL2009A-2 across the Californië geothermal wells and the Tegelen Fault"></a>
+        <figcaption>Interpreted line L2CAL2009A-2 across the Californië wells and the Tegelen Fault, a different line from SCAN029. Doornenbal et al. (2019), Geological Society, London, Special Publications 494, fig. 4. CC BY 4.0.</figcaption>
+      </figure>
+    </div>
+
+    <!-- Stage 2 -->
+    <div class="card" data-for="3" hidden>
       <h2>Attributes</h2>
       <label class="field">Attribute
         <select id="attrSelect"></select>
       </label>
+      <label class="field">Color scale <select id="attrLut"></select></label>
       <label class="field">Overlay opacity <input type="range" id="attrOpacity" min="0" max="1" step="0.05" value="0.75"></label>
       <canvas id="colorbar" width="260" height="44" aria-label="Color scale"></canvas>
       <dl class="explain">
@@ -85,7 +106,7 @@
     </div>
 
     <!-- Stage 3 -->
-    <div class="card" data-for="3" hidden>
+    <div class="card" data-for="4" hidden>
       <h2>Build a SOM</h2>
       <h3>Attributes</h3>
       <div id="attrChecks" class="checks"></div>
@@ -95,6 +116,14 @@
           <option value="5">25 (5 × 5)</option><option value="6" selected>36 (6 × 6)</option><option value="8">64 (8 × 8)</option><option value="10">100 (10 × 10)</option>
         </select>
       </label>
+      <label class="field">Area along the line
+        <select id="somArea"><option value="full">Whole line</option><option value="someren">Someren area (0–21 km)</option><option value="well">Californië wells (29–40 km)</option><option value="view">Current zoom view</option></select>
+      </label>
+      <div class="row2">
+        <label class="field">Top (s) <input type="number" id="somTop" min="0.15" max="2.9" step="0.05" value="0.15"></label>
+        <label class="field">Base (s) <input type="number" id="somBase" min="0.25" max="3.0" step="0.05" value="3.00"></label>
+      </div>
+      <p class="small">Attributes are converted to standard deviations within this window, and only samples inside it are trained on and classified.</p>
       <button class="big run" id="runSom">Train the SOM</button>
       <div class="progress" id="progress" hidden><div class="bar"><span id="progressBar"></span></div><p class="small" id="progressText"></p></div>
       <label class="field">Overlay opacity <input type="range" id="somOpacity" min="0" max="1" step="0.05" value="0.75"></label>
@@ -108,7 +137,7 @@
     </div>
 
     <!-- Stage 4 -->
-    <div class="card" data-for="4" hidden>
+    <div class="card" data-for="5" hidden>
       <h2>SHAP</h2>
       <p class="small" id="shapRunLabel">Train a SOM in stage 3 first.</p>
       <h3>How far each attribute moves samples across the map</h3>
@@ -121,7 +150,7 @@
     </div>
 
     <!-- Stage 5 -->
-    <div class="card" data-for="5" hidden>
+    <div class="card" data-for="6" hidden>
       <h2>Someren prospect</h2>
       <p class="small">ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops are placed in two-way time with the migration velocities.</p>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
