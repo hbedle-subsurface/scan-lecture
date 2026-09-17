@@ -24,7 +24,7 @@
   const state = {
     stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, zoomT: null, drag: null, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, zoomT: null, drag: null, compare: false, runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -71,8 +71,14 @@
       const d = await loadBin(`attr_${state.attr}.bin`, Uint8Array), lut = state.attrLut === "default" ? meta.attributes[state.attr].lut : meta.luts[state.attrLut].lut;
       return { img: raster(g.nx, nt, (i, j) => lut[d[i * nt + j]]), km: [g.km_min, g.km_max], t: tg };
     }
-    if (s >= 4 && run()) {
-      const r = run(), cols = neuronColors(r.side);
+    if (s >= 4 && run()) return classOverlay(run());
+    return null;
+  }
+
+  function classOverlay(r) {
+    const g = meta.grid, nt = g.nt, tg = [meta.t_min - g.dt / 2, meta.t_min + (nt - 0.5) * g.dt];
+    {
+      const cols = neuronColors(r.side);
       const img = raster(g.nx, nt, (i, j) => { const k = r.bmu[i * nt + j]; return k === 255 ? [0, 0, 0] : cols[k]; });
       const cctx = img.getContext("2d"), id = cctx.getImageData(0, 0, g.nx, nt);
       const hidden = r.hidden || new Set();   // neurons switched off on the grid are left transparent
@@ -80,7 +86,6 @@
       cctx.putImageData(id, 0, 0);
       return { img, km: [g.km_min, g.km_max], t: tg };
     }
-    return null;
   }
 
   /* ---------- geometry ---------- */
@@ -97,6 +102,22 @@
     W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     cx.setTransform(dpr, 0, 0, dpr, 0, 0); draw();
   }
+  function compareOverlay(i) {
+    const r = state.runs[i], key = `${r.id}:${[...(r.hidden || [])].sort((a, b) => a - b).join(".")}`;
+    if (!state.compareCache[key]) state.compareCache[key] = classOverlay(r);
+    return state.compareCache[key];
+  }
+
+  function drawCompare(alpha) {
+    const xSplit = MARGIN.l + state.wipe * (W - MARGIN.l - MARGIN.r);
+    for (const [i, x0, x1, name] of [[state.runA, MARGIN.l, xSplit, `Run ${state.runA + 1}`], [state.runB, xSplit, W - MARGIN.r, `Run ${state.runB + 1}`]]) {
+      cx.save(); cx.beginPath(); cx.rect(x0, MARGIN.t, x1 - x0, H - MARGIN.t - MARGIN.b); cx.clip();
+      drawRaster(compareOverlay(i), alpha); cx.restore();
+      if (x1 - x0 > 60) topLabel((x0 + x1) / 2, `${name}: ${state.runs[i].features.length} attributes, ${state.runs[i].side ** 2} neurons`, "#dfe6e9");
+    }
+    cx.save(); cx.strokeStyle = "#fff"; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(xSplit, MARGIN.t); cx.lineTo(xSplit, H - MARGIN.b); cx.stroke(); cx.restore();
+  }
+
   function clipPlot() { cx.beginPath(); cx.rect(MARGIN.l, MARGIN.t, W - MARGIN.l - MARGIN.r, H - MARGIN.t - MARGIN.b); cx.clip(); }
 
   function drawRaster(o, alpha) {
@@ -155,7 +176,9 @@
     drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
     const s = state.stage, control = !(s === 1 && state.hideControl);
     if (((s === 1 && state.showUnits) || (s === 2 && state.showGeoColumns)) && control) drawWellColumns();
-    if (overlay && s > 2) drawRaster(overlay, { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.verdictOpacity }[s]);
+    const alpha = { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.verdictOpacity }[s];
+    if (s >= 4 && state.compare && state.runs[state.runA] && state.runs[state.runB]) drawCompare(alpha);
+    else if (overlay && s > 2) drawRaster(overlay, alpha);
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && state.showWell) drawWell();
     drawSomerenLimits();
@@ -515,6 +538,37 @@
     return `${n} of ${r.side * r.side} neurons shown, ${(on * 100).toFixed(0)}% of samples in the window`;
   }
   function updateNeuronInfo() { for (const id of ["#neuronInfo", "#neuronInfoVerdict"]) { const el = $(id); if (el) el.textContent = shownShare(); } }
+  function fillRunSelects() {
+    for (const [id, key] of [["#runA", "runA"], ["#runB", "runB"]]) {
+      const sel = $(id); sel.innerHTML = "";
+      state.runs.forEach((r, i) => sel.append(Object.assign(document.createElement("option"), { value: i, textContent: `Run ${i + 1}: ${r.features.length} attributes, ${r.side ** 2} neurons` })));
+      if (state[key] >= state.runs.length) state[key] = Math.max(0, state.runs.length - 1);
+      sel.value = state[key];
+    }
+    $("#comparePanel").hidden = state.runs.length < 2;
+  }
+
+  function somPickList() {
+    const picked = $$("#attrChecks input:checked").map((x) => x.value);
+    $("#somPicks").textContent = picked.length ? picked.map((f) => meta.attributes[f].label).join(", ") : "none yet";
+    const box = $("#attrForSom"); if (box) box.checked = picked.includes(state.attr);
+  }
+
+  function wireSomPicks() {
+    $("#attrForSom").addEventListener("change", (e) => {
+      const input = $(`#attrChecks input[value="${state.attr}"]`); input.checked = e.target.checked; somPickList();
+    });
+    $$("#attrChecks input").forEach((i) => i.addEventListener("change", somPickList));
+    somPickList();
+  }
+
+  function wireCompare() {
+    $("#compareOn").addEventListener("change", (e) => { state.compare = e.target.checked; refresh(); });
+    for (const [id, key] of [["#runA", "runA"], ["#runB", "runB"]]) $(id).addEventListener("change", (e) => { state[key] = +e.target.value; refresh(); });
+    $("#wipe").addEventListener("input", (e) => { state.wipe = +e.target.value; draw(); });
+    $("#swapRuns").addEventListener("click", () => { [state.runA, state.runB] = [state.runB, state.runA]; fillRunSelects(); refresh(); });
+  }
+
   function wireNeuronToggles() {
     for (const [canvasId, allId, noneId] of [["#somGrid", "#neuronsAll", "#neuronsNone"], ["#somGridVerdict", "#neuronsAllV", "#neuronsNoneV"]]) {
       const c = $(canvasId);
@@ -654,7 +708,9 @@
         if (m.type === "map") {
           Object.assign(rec, { bmu: m.bmu, hits: m.hits, corr: m.corr }); state.runs.push(rec); state.current = state.runs.length - 1;
           state.sample = null; state.explained = null; $("#runSom").disabled = false; state.busy = false;
-          drawRunLog(); drawRedundancy(); refresh();
+          drawRunLog(); drawRedundancy(); fillRunSelects();
+          if (state.runs.length >= 2) { state.runB = state.runs.length - 1; state.runA = state.runs.length - 2; fillRunSelects(); }
+          refresh();
         }
         if (m.type === "importance") { rec.importance = m.importance; $("#progress").hidden = true; drawRunLog(); drawShapGlobal(); }
         if (m.type === "explain") { state.explained = { run: rec.id, ...m }; drawShapSample(); }
@@ -671,7 +727,7 @@
       for (const [k, a] of list) og.append(Object.assign(document.createElement("option"), { value: k, textContent: a.label }));
       aSel.append(og);
     }
-    aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); refresh(); });
+    aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); somPickList(); refresh(); });
     const lSel = $("#attrLut");
     lSel.append(Object.assign(document.createElement("option"), { value: "default", textContent: "Default for this attribute" }));
     for (const [k, v] of Object.entries(meta.luts)) lSel.append(Object.assign(document.createElement("option"), { value: k, textContent: v.label }));
@@ -785,7 +841,7 @@
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
-    wire(); wireWellChips(); wireGeology(); wireBuilder(); wireNeuronToggles(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
+    wire(); wireWellChips(); wireGeology(); wireBuilder(); wireNeuronToggles(); wireCompare(); wireSomPicks(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
   }
   init();
 })();
