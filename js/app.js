@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  const ZOOMS = { full: [15.0, 40.0], well: [30.0, 39.0] };
+  const ZOOMS = { full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0] };
   const MARGIN = { l: 58, r: 66, t: 14, b: 42 };
   const KEY_TOPS = new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
     "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]);
@@ -19,7 +19,7 @@
   const state = {
     stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: true, showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false,
+    runs: [], current: -1, busy: false, showSomeren: true,
   };
 
   const $ = (s) => document.querySelector(s);
@@ -36,7 +36,7 @@
   const makeCanvas = (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h });
   const hexToRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const fmt = (x) => (Math.abs(x) >= 100 ? x.toFixed(0) : Math.abs(x) >= 1 ? x.toFixed(1) : x.toFixed(2));
-  const shortName = (f) => ({ relative_acoustic_impedance: "Rel. AI", amplitude_volume_transform: "AVT", envelope: "Envelope", sweetness: "Sweetness", rms_amplitude: "RMS amp.", instantaneous_frequency: "Inst. freq.", spectral_ratio: "Spec. ratio",
+  const shortName = (f) => ({ full_stack_amplitude: "Full amp.", near_stack_amplitude: "Near amp.", mid_stack_amplitude: "Mid amp.", far_stack_amplitude: "Far amp.", relative_acoustic_impedance: "Rel. AI", amplitude_volume_transform: "AVT", envelope: "Envelope", sweetness: "Sweetness", rms_amplitude: "RMS amp.", instantaneous_frequency: "Inst. freq.", spectral_ratio: "Spec. ratio",
     apparent_dip: "Dip", dip_variability: "Dip var.", coherence: "Coherence", far_minus_near: "Far − near" }[f] || f);
 
   /* ---------- rasters ---------- */
@@ -55,14 +55,14 @@
   })();
 
   async function buildOverlay() {
-    const s = state.stage, g = meta.grid, nt = meta.nt;
+    const s = state.stage, g = meta.grid, nt = g.nt, tg = [meta.t_min - g.dt / 2, meta.t_min + (nt - 0.5) * g.dt];
     if (s === 2) {
       const d = await loadBin(`attr_${state.attr}.bin`, Uint8Array), lut = meta.attributes[state.attr].lut;
-      return { img: raster(g.nx, nt, (i, j) => lut[d[i * nt + j]]), km: [g.km_min, g.km_max], t: [meta.t_min, meta.t_max] };
+      return { img: raster(g.nx, nt, (i, j) => lut[d[i * nt + j]]), km: [g.km_min, g.km_max], t: tg };
     }
     if (s >= 3 && run()) {
       const r = run(), cols = neuronColors(r.side);
-      return { img: raster(g.nx, nt, (i, j) => cols[r.bmu[i * nt + j]]), km: [g.km_min, g.km_max], t: [meta.t_min, meta.t_max] };
+      return { img: raster(g.nx, nt, (i, j) => cols[r.bmu[i * nt + j]]), km: [g.km_min, g.km_max], t: tg };
     }
     return null;
   }
@@ -121,6 +121,7 @@
     if (overlay && s > 1) drawRaster(overlay, { 2: state.attrOpacity, 3: state.somOpacity, 4: state.somOpacity, 5: state.verdictOpacity }[s]);
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && (s === 1 || s === 5) && state.showWell) drawWell();
+    if ((s === 1 || s === 5) && state.showSomeren) drawSomeren();
     if (s === 1) drawTraceMarker();
     if (s === 1 && PICK_MODE) drawPicks();
     if (s === 4 && state.sample) drawSampleMarker();
@@ -197,6 +198,24 @@
     cx.restore();
   }
 
+  function drawSomeren() {
+    const so = meta.someren, b = so.depth_band; cx.save(); clipPlot();
+    // target depth range converted to two-way time with the migration velocities, drawn across the license crossing
+    const inRange = b.km.map((k, i) => i).filter((i) => b.km[i] >= so.km[0] - 0.5 && b.km[i] <= so.km[1] + 0.5);
+    if (inRange.length > 1) {
+      cx.beginPath(); inRange.forEach((i, n) => (n ? cx.lineTo : cx.moveTo).call(cx, X(b.km[i]), Y(b.top[i])));
+      [...inRange].reverse().forEach((i) => cx.lineTo(X(b.km[i]), Y(b.base[i]))); cx.closePath();
+      cx.fillStyle = "rgba(118,183,178,.18)"; cx.fill(); cx.setLineDash([7, 5]); cx.strokeStyle = "#76b7b2"; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
+    }
+    const x0 = X(so.km[0]), x1 = X(so.km[1]), y = MARGIN.t + 4;
+    cx.strokeStyle = "#76b7b2"; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(x0, y + 10); cx.lineTo(x0, y); cx.lineTo(x1, y); cx.lineTo(x1, y + 10); cx.stroke();
+    const lab = `Someren exploration license (approx.), target ${b.depth_m[0]}–${b.depth_m[1]} m`;
+    const i0 = inRange.length ? inRange[0] : 0, ly = inRange.length ? Y(b.top[i0]) - 26 : y + 14;
+    cx.font = "600 13px Barlow, Arial, sans-serif"; const w = cx.measureText(lab).width + 12, lx = Math.max(MARGIN.l + 4, x0);
+    cx.fillStyle = "#76b7b2"; cx.fillRect(lx, ly, w, 20); cx.fillStyle = "#10201f"; cx.textAlign = "left"; cx.textBaseline = "middle"; cx.fillText(lab, lx + 6, ly + 10);
+    cx.restore();
+  }
+
   function drawTraceMarker() {
     const x = X(state.traceKm); if (x < MARGIN.l || x > W - MARGIN.r) return;
     cx.save(); cx.strokeStyle = "rgba(200,54,45,.9)"; cx.lineWidth = 1.5; cx.setLineDash([3, 3]);
@@ -228,10 +247,11 @@
     cx.textAlign = "right"; cx.textBaseline = "middle";
     for (let t = 0.2; t <= v.tB + 1e-9; t += 0.2) { const y = Y(t); cx.fillRect(MARGIN.l - 5, y, 5, 1); cx.fillText(t.toFixed(1), MARGIN.l - 8, y); }
     cx.save(); cx.translate(16, (MARGIN.t + H - MARGIN.b) / 2); cx.rotate(-Math.PI / 2); cx.textAlign = "center"; cx.fillText("Two-way time (s)", 0, 0); cx.restore();
-    if (depthAxis) {
+    if (depthAxis || state.zoom === "someren") {
       cx.textAlign = "left";
-      for (const d of meta.well.depth_axis) { if (d.depth % 500 || d.twt < v.tA || d.twt > v.tB) continue; const y = Y(d.twt); cx.fillRect(W - MARGIN.r, y, 5, 1); cx.fillText(String(d.depth), W - MARGIN.r + 8, y); }
-      cx.save(); cx.translate(W - 12, (MARGIN.t + H - MARGIN.b) / 2); cx.rotate(Math.PI / 2); cx.textAlign = "center"; cx.fillText(`Depth below NAP at ${meta.well.name} (m)`, 0, 0); cx.restore();
+      const someren = state.zoom === "someren", axis = someren ? meta.someren.depth_axis.axis : meta.well.depth_axis;
+      for (const d of axis) { if (d.depth % 500 || d.twt < v.tA || d.twt > v.tB) continue; const y = Y(d.twt); cx.fillRect(W - MARGIN.r, y, 5, 1); cx.fillText(String(d.depth), W - MARGIN.r + 8, y); }
+      cx.save(); cx.translate(W - 12, (MARGIN.t + H - MARGIN.b) / 2); cx.rotate(Math.PI / 2); cx.textAlign = "center"; cx.fillText(someren ? `Depth below NAP at ${meta.someren.depth_axis.km} km, from migration velocities (m)` : `Depth below NAP at ${meta.well.name} (m)`, 0, 0); cx.restore();
     }
     cx.restore();
   }
@@ -293,8 +313,10 @@
     draw();
   }
 
+  function setZoom(z) { state.zoom = z; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
   function setStage(n) {
     state.stage = n;
+    if (n === 5) setZoom("someren");
     $$(".tag").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.stage === n)));
     $$(".card").forEach((c) => (c.hidden = +c.dataset.for !== n));
     refresh();
@@ -389,9 +411,9 @@
   let worker = null;
   function requestExplain() {
     const r = run(); if (!r || !state.sample || !worker || state.current !== state.runs.length - 1) { if (r && state.current !== state.runs.length - 1) $("#sampleTitle").textContent = "Samples can be explained for the most recent run"; return; }
-    const g = meta.grid, gi = Math.round((state.sample.km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.round((state.sample.t - meta.t_min) / meta.dt);
+    const g = meta.grid, gi = Math.round((state.sample.km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.min(g.nt - 1, Math.round((state.sample.t - meta.t_min) / g.dt));
     $("#sampleTitle").textContent = "Computing SHAP values for the sample…";
-    worker.postMessage({ type: "explain", index: gi * meta.nt + j });
+    worker.postMessage({ type: "explain", index: gi * g.nt + j });
   }
 
   function wireBuilder() {
@@ -424,7 +446,7 @@
         if (m.type === "importance") { rec.importance = m.importance; $("#progress").hidden = true; drawRunLog(); drawShapGlobal(); }
         if (m.type === "explain") { state.explained = { run: rec.id, ...m }; drawShapSample(); }
       };
-      worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.nt, side, seed: 7 }, attrs.map((a) => a.data.buffer));
+      worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.grid.nt, side, seed: 7 }, attrs.map((a) => a.data.buffer));
     });
   }
 
@@ -439,8 +461,8 @@
     aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); refresh(); });
 
     $$(".tag").forEach((b) => b.addEventListener("click", () => setStage(+b.dataset.stage)));
-    $$("[data-zoom]").forEach((b) => b.addEventListener("click", () => { state.zoom = b.dataset.zoom; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); draw(); }));
-    for (const [id, key] of [["#showWell", "showWell"], ["#showUnits", "showUnits"], ["#showInterp", "showInterp"]]) $(id).addEventListener("change", (e) => { state[key] = e.target.checked; draw(); });
+    $$("[data-zoom]").forEach((b) => b.addEventListener("click", () => { setZoom(b.dataset.zoom); draw(); }));
+    for (const [id, key] of [["#showWell", "showWell"], ["#showUnits", "showUnits"], ["#showInterp", "showInterp"], ["#showSomeren", "showSomeren"], ["#showSomeren5", "showSomeren"]]) $(id).addEventListener("change", (e) => { state[key] = e.target.checked; draw(); });
     const hBoxes = [$("#showHorizons"), ...$$(".syncHorizons")];
     hBoxes.forEach((box) => box.addEventListener("change", (e) => { state.showHorizons = e.target.checked; hBoxes.forEach((b) => (b.checked = state.showHorizons)); draw(); }));
     $("#hideWellControl").addEventListener("click", (e) => {
@@ -454,11 +476,11 @@
     cv.addEventListener("mousemove", (e) => {
       const r = cv.getBoundingClientRect(), km = invX(e.clientX - r.left), t = invY(e.clientY - r.top), v = view();
       if (km < v.kmA || km > v.kmB || t < meta.t_min || t > meta.t_max) { $("#readout").textContent = idle; return; }
-      const g = meta.grid, gi = Math.round((km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.round((t - meta.t_min) / meta.dt);
+      const g = meta.grid, gi = Math.round((km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.min(g.nt - 1, Math.round((t - meta.t_min) / g.dt));
       let txt = `${km.toFixed(2)} km, ${t.toFixed(3)} s`;
       const attr = cache[`attr_${state.attr}.bin`], rr = run();
-      if (state.stage === 2 && attr && gi >= 0 && gi < g.nx) { const a = meta.attributes[state.attr]; txt += `, ${a.label} ${fmt(a.min + attr[gi * meta.nt + j] / 255 * (a.max - a.min))} ${a.unit}`; }
-      if (state.stage >= 3 && rr && gi >= 0 && gi < g.nx) { const k = rr.bmu[gi * meta.nt + j]; txt += `, neuron row ${Math.floor(k / rr.side) + 1}, column ${k % rr.side + 1}`; }
+      if (state.stage === 2 && attr && gi >= 0 && gi < g.nx) { const a = meta.attributes[state.attr]; txt += `, ${a.label} ${fmt(a.min + attr[gi * g.nt + j] / 255 * (a.max - a.min))} ${a.unit}`; }
+      if (state.stage >= 3 && rr && gi >= 0 && gi < g.nx) { const k = rr.bmu[gi * g.nt + j]; txt += `, neuron row ${Math.floor(k / rr.side) + 1}, column ${k % rr.side + 1}`; }
       $("#readout").textContent = txt;
     });
     cv.addEventListener("click", (e) => {

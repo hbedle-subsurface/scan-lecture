@@ -14,14 +14,14 @@
 <header class="bar">
   <div class="case">
     <h1>The SCAN029 case</h1>
-    <p>Californië geothermal area, Venlo, the Netherlands</p>
+    <p>From the Californië geothermal wells to the Someren prospect, southeastern Netherlands</p>
   </div>
   <nav class="stages" aria-label="Stages">
     <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
     <button class="tag" data-stage="2"><span>2</span>Attributes</button>
     <button class="tag" data-stage="3"><span>3</span>Build a SOM</button>
     <button class="tag" data-stage="4"><span>4</span>SHAP</button>
-    <button class="tag" data-stage="5"><span>5</span>Verdict</button>
+    <button class="tag" data-stage="5"><span>5</span>Someren prospect</button>
   </nav>
 </header>
 
@@ -29,8 +29,9 @@
   <section class="exhibit" aria-label="Seismic section">
     <div class="viewbar">
       <div class="seg" role="group" aria-label="Zoom">
-        <button data-zoom="full" aria-pressed="true">15–40 km</button>
-        <button data-zoom="well" aria-pressed="false">Near the well</button>
+        <button data-zoom="full" aria-pressed="true">Whole line</button>
+        <button data-zoom="someren" aria-pressed="false">Someren area</button>
+        <button data-zoom="well" aria-pressed="false">Californië wells</button>
       </div>
       <div class="readout" id="readout">Move over the section to read position and values. Click to show a trace.</div>
     </div>
@@ -46,6 +47,7 @@
         <label><input type="checkbox" id="showHorizons" checked> Horizons</label>
         <label><input type="checkbox" id="showUnits" checked> Formation shading</label>
         <label><input type="checkbox" id="showInterp" checked> Interpolated horizon segments</label>
+        <label><input type="checkbox" id="showSomeren" checked> Someren license and target depth</label>
       </fieldset>
       <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
       <div class="pick" id="pickPanel" hidden>
@@ -116,9 +118,10 @@
 
     <!-- Stage 5 -->
     <div class="card" data-for="5" hidden>
-      <h2>Verdict</h2>
-      <p>The current SOM with the well control returned.</p>
-      <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.55"></label>
+      <h2>Someren prospect</h2>
+      <p class="small">No well lies on the line in the Someren license. The shaded band is the 500–1500 m depth range stated by the developer, converted to two-way time with the migration velocities.</p>
+      <label><input type="checkbox" id="showSomeren5" checked> License and target depth</label>
+      <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
       <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid"></canvas>
     </div>
   </aside>

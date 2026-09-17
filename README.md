@@ -1,16 +1,24 @@
 # The SCAN029 case
 
-An interactive board for a 45-minute colloquium on seismic attributes, unsupervised seismic facies classification, and explaining what a machine learning model relies on. It uses one open 2D seismic line from the SCAN geothermal program in the Netherlands and the CAL-GT-04 geothermal well near Venlo.
+An interactive board for a 45-minute colloquium on seismic attributes, unsupervised seismic facies classification, and explaining what a machine learning model relies on. It uses the open 2D seismic line SCAN029 from the SCAN geothermal program in the Netherlands. The line runs from the Someren geothermal exploration license in the west, where no well lies on the line, to the Californië geothermal wells near Venlo in the east, where CAL-GT-04 provides formation tops.
 
-The page loads precomputed data only, so it runs on GitHub Pages or any static web server.
+The page loads precomputed data and trains the SOM in the browser, so it runs on GitHub Pages or any static web server.
+
+## Exercise
+
+1. The section, the CAL-GT-04 well tie and formation tops at the east end, and the Someren license crossing with its stated 500–1500 m target depth range at the west end.
+2. Attributes, one at a time, over the whole line.
+3. A SOM trained on a chosen combination of attributes and number of neurons.
+4. SHAP values for that SOM, showing which attributes place samples where on the map, followed by further runs with other combinations.
+5. The classes in the Someren area, where the only calibration is what was learned at the Californië end of the line.
 
 ## Stages
 
-1. **Line and well.** The PreSTM full stack from 15 to 40 km along SCAN029, the CAL-GT-04 well path projected onto the line, formation tops, six horizons tracked from the well tie, and formation shading. Well control can be hidden to view the section as if no well existed. Clicking the section shows the trace at that location.
-2. **Attributes.** Eleven attributes overlaid on the seismic with fixed color scales.
-3. **Build a SOM.** Any combination of attributes and a SOM of 4 to 100 neurons, trained in the browser. The section is colored by each sample's neuron on a 2D color bar, the neuron grid shows how many samples each neuron holds, pairs of chosen attributes that correlate at 0.8 or more are listed, and every run is kept so runs can be compared.
+1. **Line and well.** The PreSTM full stack along the whole line (0–48.5 km, 0.15–3.0 s), with zoom views of the Someren area and the Californië wells. CAL-GT-04 is projected onto the line with its formation tops, horizons and formation shading; the Someren license crossing and target depth range are marked. Well control can be hidden. Clicking the section shows the trace at that location.
+2. **Attributes.** Fifteen attributes, including the amplitude of the full, near, mid and far stacks, overlaid on the seismic with fixed color scales.
+3. **Build a SOM.** Any combination of attributes and a SOM of 4 to 100 neurons, trained in the browser. The section is colored by each sample's neuron on a 2D color bar, the neuron grid shows how many samples each neuron holds, pairs of chosen attributes that correlate at 0.8 or more are listed, and every run is kept for comparison.
 4. **SHAP.** For the current run, how far each attribute moves samples across the map on average, and, for a clicked sample, the path from the average position to the sample's neuron built from each attribute's SHAP value.
-5. **Verdict.** The current SOM with the well control returned.
+5. **Someren prospect.** The current SOM in the Someren area with the license crossing and target depth range, and a depth scale from the migration velocities at the center of the crossing.
 
 ## Running locally
 
@@ -31,7 +39,7 @@ Place these NLOG files in `raw/` (not committed):
 - `L2EBN2020ASCAN029_PreSTM_final_far.sgy`
 - `L2EBN2020ASCAN029_PreSTM_velocities_migration_ascii.txt`
 
-and the three attributes computed in AASPI, exported as SEG-Y on CDP 5500–16500 and 0–2 s (CDP number in byte 21), in `raw/aaspi/`: `relative_acoustic_impedance_hb_1.segy`, `rms_amplitude_hb_1.segy`, `AVT_hb_1.segy`.
+plus `L2EBN2020ASCAN029_PreSTM_final_mid.sgy`, and the three attributes computed in AASPI on the whole line from 0 to 3 s, converted from VDS to NumPy arrays with `python vds_to_npy.py <file>.vds <file>.npy` (requires the `openvds` package) and placed in `raw/aaspi_0-3s/`: `relative_acoustic_impedance03.npy`, `rms_amplitude03.npy`, `avt03.npy`.
 
 Then:
 
@@ -43,8 +51,8 @@ python build_data.py
 
 | Step | Script | Output |
 |---|---|---|
-| 1 | `step1_read.py` | 15–40 km of the full, near and far stacks with one time-only gain |
-| 2 | `step2_well.py` | Well path and tops in two-way time |
+| 1 | `step1_read.py` | The whole line, 0–3 s, of the full, near, mid and far stacks with one time-only gain |
+| 2 | `step2_well.py` | Well path and tops in two-way time; Someren target depth range in two-way time along the line |
 | 3 | `step3_horizons.py` | Six horizons, 30–39 km |
 | 4 | `step4_attributes.py` | Attributes on a 20 m grid, including the AASPI attributes |
 | 6 | `step6_export.py` | `data/meta.json` and binary arrays |
@@ -61,16 +69,19 @@ Well inputs are in `python/inputs/`: formation tops from NLOG, and deviation sur
 
 Interpreted horizons replace the automatic ones. Opening the page with `?pick` at the end of the address adds a pick panel to stage 1: clicks add points to the selected horizon (optionally moved to the nearest trough or peak matching the horizon polarity within ±8 ms), shift-click removes the nearest point, and "Download picks" saves `horizon_picks.json`. Placing that file in `data/` makes the page use the picks, linearly interpolated between points, for every visitor.
 
-**Attributes.** Relative acoustic impedance, RMS amplitude and the amplitude volume transform were computed in AASPI; envelope, instantaneous frequency, sweetness, spectral ratio, apparent dip, dip variability, coherence and far minus near were computed in `step4_attributes.py`. The AASPI attributes RMS amplitude receives the same time-only gain as the seismic; relative acoustic impedance and AVT are each divided by their own median RMS at each time, because integration and phase rotation change how their amplitude varies with time. Relative acoustic impedance is multiplied by −1 because an increase in acoustic impedance is a negative number in this dataset. RMS amplitude and envelope correlate at 1.00 on this line, and sweetness correlates with both at 0.97–0.98, so only RMS amplitude is used in the SOM presets.
+**Someren license and target.** The license crossing (about 4–17 km) is read from the EBN/NLOG geothermal license map and is approximate (`SOMEREN_KM` in `config.py`). The developer states a target depth of 500–1500 m for medium-deep geothermal; that range is converted to two-way time with Dix interval velocities from the migration velocities at each velocity location. The target formation is not named in the published sources.
+
+**Attributes.** Attributes are exported on a 20 m by 4 ms grid. The stack amplitudes (full, near, mid, far) are signed traces with the seismic time gain, averaged over 140 m along the line but not in time. Relative acoustic impedance, RMS amplitude and the amplitude volume transform were computed in AASPI; envelope, instantaneous frequency, sweetness, spectral ratio, apparent dip, dip variability, coherence and far minus near were computed in `step4_attributes.py`. The AASPI attributes RMS amplitude receives the same time-only gain as the seismic; relative acoustic impedance and AVT are each divided by their own median RMS at each time, because integration and phase rotation change how their amplitude varies with time. Relative acoustic impedance is multiplied by −1 because an increase in acoustic impedance is a negative number in this dataset. RMS amplitude and envelope correlate at 1.00 on this line, and sweetness correlates with both at 0.97–0.98, so only RMS amplitude is used in the SOM presets.
 
 Attributes other than relative acoustic impedance and AVT are averaged over a 140 m by 62 ms window so they describe seismic facies character rather than individual reflections. Relative acoustic impedance and AVT are zero-mean band-limited traces, so they are averaged over the same 140 m laterally but only 10 ms vertically. Geometric attributes on a 2D line measure apparent dip along the line only. Instantaneous frequency and the spectral ratio decrease with travel time as higher frequencies are attenuated, so part of their variation follows depth. In the Carboniferous section the near and far stacks correlate at about 0.2, so the far minus near attribute contains a large noise component there.
 
-**SOM.** The SOM (Kohonen, 1982) runs in a Web Worker (`js/som-worker.js`). The chosen attributes are converted to z-scores over the 15–40 km, 0.15–1.70 s window. Prototypes start on the plane of the first two principal components, which keeps the map orientation similar between runs, and are trained on 20,000 random samples with a Gaussian neighborhood that shrinks from half the map width to 0.5 neurons. A fixed random seed makes the same settings give the same map. Every sample is then assigned to its closest prototype. Neuron colors come from a 2D color bar, so neighboring neurons, which hold similar attribute combinations, have similar colors.
+**SOM.** The SOM (Kohonen, 1982) runs in a Web Worker (`js/som-worker.js`). The chosen attributes are converted to z-scores over the whole line, 0.15–3.0 s. Prototypes start on the plane of the first two principal components, which keeps the map orientation similar between runs, and are trained on 20,000 random samples with a Gaussian neighborhood that shrinks from half the map width to 0.5 neurons. A fixed random seed makes the same settings give the same map. Every sample is then assigned to its closest prototype. Neuron colors come from a 2D color bar, so neighboring neurons, which hold similar attribute combinations, have similar colors.
 
 **SHAP.** The explained output is a sample's position on the SOM grid, which sets its color: the average grid position of all neurons, weighted by exp(−squared distance / τ), where τ is the median squared distance from a sample to its closest neuron. SHAP values (Lundberg and Lee, 2017) are estimated by sampling random attribute orderings, each with a randomly chosen training sample as the background (Štrumbelj and Kononenko, 2014): 8 orderings per sample for the 400 samples in the global importance, and 400 orderings for a clicked sample. The average position plus the SHAP values gives the sample's position. Attributes that correlate share credit, so each of several near-duplicate attributes can show a small SHAP value while together they have a large effect.
 
 ## Data sources
 
+- Geothermal licenses: Someren exploration license (Staatscourant 2020, 39740); target depth range from the developer as reported by Groenten & Fruit Actueel (January 2025).
 - Seismic: SCAN 2D line L2EBN2020ASCAN029, acquired 2020 and processed 2021 for EBN and TNO, available through NLOG (nlog.nl).
 - Well: CAL-GT-04, Californië Lipzig Gielen Geothermie B.V., formation tops and deviation survey from NLOG.
 

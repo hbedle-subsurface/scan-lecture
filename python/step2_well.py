@@ -45,8 +45,19 @@ def main():
     path = [dict(md=float(md), **locate(md)) for md in np.arange(0, 3037.2, 20)]
     zone = [t for t in tops if t["unit"] == "Zeeland Formation"][0]
     z, tg = depth_time_table(vcdp, vt, vv, zone["cdp"])
-    depth_axis = [dict(depth=int(d), twt=float(np.interp(d, z, tg))) for d in range(0, 2601, 100)]
-    json.dump(dict(tops=tops, path=path, depth_axis=depth_axis), open(C.WORK / "step2_well.json", "w"), indent=1)
+    depth_axis = [dict(depth=int(d), twt=float(np.interp(d, z, tg))) for d in range(0, 5001, 100)]
+    # two-way time of the Someren target depth range along the whole line, from the same velocity functions
+    band_km, band_top, band_base = [], [], []
+    for k in np.unique(vcdp):
+        i = int(np.abs(cdp_all - k).argmin())
+        zz, tt = depth_time_table(vcdp, vt, vv, k)
+        band_km.append(float(km_all[i])); band_top.append(float(np.interp(C.SOMEREN_TARGET_DEPTH_M[0], zz, tt)))
+        band_base.append(float(np.interp(C.SOMEREN_TARGET_DEPTH_M[1], zz, tt)))
+    mid_km = sum(C.SOMEREN_KM) / 2; i_mid = int(np.abs(km_all - mid_km).argmin())
+    zz, tt = depth_time_table(vcdp, vt, vv, cdp_all[i_mid])
+    someren_axis = dict(km=round(float(km_all[i_mid]), 2), axis=[dict(depth=int(d), twt=float(np.interp(d, zz, tt))) for d in range(0, 5001, 100)])
+    depth_band = dict(km=band_km, top=band_top, base=band_base, depth_m=list(C.SOMEREN_TARGET_DEPTH_M))
+    json.dump(dict(tops=tops, path=path, depth_axis=depth_axis, depth_band=depth_band, someren_axis=someren_axis), open(C.WORK / "step2_well.json", "w"), indent=1)
     for t in tops:
         print(f'{t["unit"]:38s} TWT {t["twt"]:.3f} s  km {t["km"]:.2f}  offset {t["offset_m"]:.0f} m')
 

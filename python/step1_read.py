@@ -19,7 +19,7 @@ def main():
     out = dict(full=(full * gain).astype(np.float32), gain=gain, sec_idx=sec_idx, att_idx=att_idx,
                sec_km=geo["km"][sec_idx], att_km=geo["km"][att_idx],
                x=geo["x"], y=geo["y"], km_all=geo["km"], cdp=geo["cdp"])
-    for k in ["near", "far"]:
+    for k in ["near", "mid", "far"]:
         t = segy.open_traces(C.STACKS[k])
         out[k] = (segy.read_block(t, att_idx, C.N_READ) * gain).astype(np.float32)
     np.savez(C.WORK / "step1_read.npz", **out)

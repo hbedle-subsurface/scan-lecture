@@ -45,6 +45,22 @@ ATTRIBUTES = {
         measures="Similarity of five neighboring traces compared along local dip.",
         geology="Low values often mark faults, fractures and disrupted or chaotic reflections.",
         source="Marfurt et al. (1998)."),
+    "full_stack_amplitude": dict(label="Full stack amplitude", unit="relative", cmap="RdBu_r", family="Stack amplitude",
+        measures="Amplitude of the full stack after the time-only gain, averaged over 140 m along the line but not in time.",
+        geology="Sign and strength of reflections, which follow changes in acoustic impedance across bed boundaries.",
+        source="PreSTM full stack, SCAN029."),
+    "near_stack_amplitude": dict(label="Near stack amplitude", unit="relative", cmap="RdBu_r", family="Stack amplitude",
+        measures="Amplitude of the near-angle stack, with the same gain and lateral averaging as the full stack.",
+        geology="Small incidence angles, where amplitude depends mostly on the change in acoustic impedance.",
+        source="PreSTM near-angle stack, SCAN029."),
+    "mid_stack_amplitude": dict(label="Mid stack amplitude", unit="relative", cmap="RdBu_r", family="Stack amplitude",
+        measures="Amplitude of the mid-angle stack, with the same gain and lateral averaging as the full stack.",
+        geology="Intermediate incidence angles.",
+        source="PreSTM mid-angle stack, SCAN029."),
+    "far_stack_amplitude": dict(label="Far stack amplitude", unit="relative", cmap="RdBu_r", family="Stack amplitude",
+        measures="Amplitude of the far-angle stack, with the same gain and lateral averaging as the full stack.",
+        geology="Larger incidence angles, where amplitude also depends on the change in shear-wave velocity.",
+        source="PreSTM far-angle stack, SCAN029."),
     "far_minus_near": dict(label="Far minus near envelope", unit="normalized", cmap="RdBu_r", family="AVO",
         measures="Difference between far- and near-angle-stack envelopes divided by their sum.",
         geology="Changes in amplitude with angle depend on elastic contrasts. In the Carboniferous here the near and far stacks correlate poorly, so noise contributes strongly.",
@@ -80,7 +96,7 @@ def main():
 
     attrs = {}
     for k, m in ATTRIBUTES.items():
-        v = A[k][:, t0:t1]; lo, hi = (float(x) for x in np.percentile(v, [1, 99]))
+        v = A[k][:, t0:t1:C.ATT_TSTEP]; lo, hi = (float(x) for x in np.percentile(v, [1, 99]))
         if m["cmap"] == "RdBu_r": hi = max(abs(lo), abs(hi)); lo = -hi
         np.clip(np.round((v - lo) / (hi - lo) * 255), 0, 255).astype(np.uint8).tofile(C.DATA / f"attr_{k}.bin")
         attrs[k] = dict(m, min=round(lo, 4), max=round(hi, 4), lut=lut(m["cmap"]))
@@ -88,7 +104,9 @@ def main():
         line="SCAN029 (L2EBN2020ASCAN029)", km_min=float(s1["sec_km"][0]), km_max=float(s1["sec_km"][-1]),
         t_min=t0 * C.DT, t_max=t1 * C.DT, dt=C.DT, nt=t1 - t0,
         section=dict(file="section.bin", nx=int(sec.shape[0]), dx_m=10),
-        grid=dict(nx=int(A["coherence"].shape[0]), dx_m=20, km_min=float(s1["att_km"][0]), km_max=float(s1["att_km"][-1])),
+        grid=dict(nx=int(A["coherence"].shape[0]), dx_m=20, km_min=float(s1["att_km"][0]), km_max=float(s1["att_km"][-1]),
+                  nt=len(range(t0, t1, C.ATT_TSTEP)), dt=C.DT * C.ATT_TSTEP),
+        someren=dict(km=list(C.SOMEREN_KM), depth_band=well["depth_band"], depth_axis=well["someren_axis"]),
         well=dict(name=C.WELL["name"],
                   path=[dict(km=round(p["km"], 4), twt=round(p["twt"], 4), offset_m=round(p["offset_m"])) for p in well["path"]],
                   tops=[dict(unit=t["unit"], md=t["md"], tvdss=round(t["tvdss"], 1), km=round(t["km"], 4), twt=round(t["twt"], 4), offset_m=round(t["offset_m"])) for t in well["tops"]],
