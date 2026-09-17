@@ -13,6 +13,10 @@
     som: ["Self-organizing map (SOM)", "An unsupervised neural network that arranges prototype vectors on a 2D grid so that similar attribute combinations sit near each other (Kohonen, 1982). Each sample is assigned to its closest prototype, and here the prototypes are grouped into 8 classes."],
     neuron: ["Neuron", "One prototype on the SOM grid: a vector with one value per attribute. Each sample is assigned to the neuron whose prototype is closest to its attribute values, after each attribute is converted to standard deviations from its mean."],
     polarity: ["Polarity", "The SCAN029 data are zero phase, and the processing header states that an increase in acoustic impedance is recorded as a negative number. A boundary where impedance increases downward, such as shale over limestone, is therefore a trough."],
+    helpSomGrid: ["Reading the trained map", "Clicking a neuron switches it on or off on the section; shift-click shows that neuron alone. Each square is one neuron of the SOM. A neuron is a prototype: one typical combination of the chosen attributes. Neurons next to each other hold similar combinations, so the colors blend smoothly across the grid, and the section is painted with the color of each sample's closest neuron. Samples with similar colors on the section have similar attribute values. The dark dots show how many samples went to each neuron; a large dot is a common combination, a missing dot is a neuron that no sample matched closely."],
+    helpShapGlobal: ["Reading the attribute bars", "Each sample sits somewhere on the neuron grid. For each attribute, SHAP measures how far that attribute pushes a sample away from the average position on the grid. The bars average that distance over 400 random samples. A long bar means the SOM relies on that attribute to separate samples; a short bar means that attribute changes little about where samples land. The unit is a fraction of the grid width, so 0.10 on a 6 x 6 map is half a neuron, since the grid is five neuron spacings across. Attributes that repeat each other split the credit between them, so each can look less important than the information they share."],
+    helpShapPath: ["Reading the path on the grid", "The hollow circle is where an average sample would land on the grid. Each arrow is one attribute's SHAP value for the clicked sample: the direction and distance that attribute moves the sample. The arrows are drawn largest first and added end to end, and the yellow dot is where the sample actually lands, the neuron that colors it on the section. Long arrows mark the attributes that decided this sample's color. Arrows pointing in opposite directions are attributes pulling the sample toward different parts of the map."],
+    helpShapBars: ["Reading the sample bars", "These bars give the length of each arrow in the path above: how far each attribute moves this one sample across the grid, as a fraction of the grid width. They describe a single sample. The attribute bars higher up average the same quantity over many samples, so an attribute can matter a great deal for one sample and little on average, or the reverse."],
     zscore: ["Standard deviations", "Each attribute is rescaled by subtracting its mean and dividing by its standard deviation over the whole window, so attributes with different units can be compared."],
     shap: ["SHAP values", "Shapley additive explanations (Lundberg and Lee, 2017). For one sample, each attribute receives the change it makes to the model output, averaged over the orders in which attributes can be added. Here the output is the sample's position on the SOM grid, which sets its color. The average position of all samples plus every attribute's SHAP value gives the sample's position. Values are estimated from random attribute orderings (Strumbelj and Kononenko, 2014)."],
   };
@@ -20,7 +24,7 @@
   const state = {
     stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, zoomT: null, drag: null, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -71,7 +75,8 @@
       const r = run(), cols = neuronColors(r.side);
       const img = raster(g.nx, nt, (i, j) => { const k = r.bmu[i * nt + j]; return k === 255 ? [0, 0, 0] : cols[k]; });
       const cctx = img.getContext("2d"), id = cctx.getImageData(0, 0, g.nx, nt);
-      for (let i = 0; i < g.nx; i++) for (let j = 0; j < nt; j++) if (r.bmu[i * nt + j] === 255) id.data[(j * g.nx + i) * 4 + 3] = 0;
+      const hidden = r.hidden || new Set();   // neurons switched off on the grid are left transparent
+      for (let i = 0; i < g.nx; i++) for (let j = 0; j < nt; j++) { const k = r.bmu[i * nt + j]; if (k === 255 || hidden.has(k)) id.data[(j * g.nx + i) * 4 + 3] = 0; }
       cctx.putImageData(id, 0, 0);
       return { img, km: [g.km_min, g.km_max], t: tg };
     }
@@ -81,7 +86,7 @@
   /* ---------- geometry ---------- */
   const cv = $("#section"), cx = cv.getContext("2d");
   let W = 0, H = 0;
-  const view = () => { const [a, b] = ZOOMS[state.zoom]; return { kmA: a, kmB: b, tA: meta.t_min, tB: meta.t_max }; };
+  const view = () => { const [a, b] = ZOOMS[state.zoom], t = state.zoom === "custom" && state.zoomT ? state.zoomT : [meta.t_min, meta.t_max]; return { kmA: a, kmB: b, tA: t[0], tB: t[1] }; };
   const X = (km) => { const v = view(); return MARGIN.l + (km - v.kmA) / (v.kmB - v.kmA) * (W - MARGIN.l - MARGIN.r); };
   const Y = (t) => { const v = view(); return MARGIN.t + (t - v.tA) / (v.tB - v.tA) * (H - MARGIN.t - MARGIN.b); };
   const invX = (px) => { const v = view(); return v.kmA + (px - MARGIN.l) / (W - MARGIN.l - MARGIN.r) * (v.kmB - v.kmA); };
@@ -162,6 +167,10 @@
       cx.strokeRect(X(w.km[0]), Y(w.t[0]), X(w.km[1]) - X(w.km[0]), Y(w.t[1]) - Y(w.t[0])); cx.restore(); }
     drawAxes(control);
     renderTopLabels();
+    const d = state.drag;
+    if (d && d.moved) { cx.save(); cx.setLineDash([6, 4]); cx.strokeStyle = "#ffd166"; cx.lineWidth = 2; cx.fillStyle = "rgba(255,209,102,.12)";
+      cx.fillRect(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
+      cx.strokeRect(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0)); cx.restore(); }
   }
 
   const PICK_HALF_KM = 0.6;   // horizons are drawn as short picks this far either side of the well top
@@ -216,8 +225,19 @@
       topLabel((a + b) / 2, d.name, d.color, "#10151a");
     }
     const f = state.geoFocus; if (!f) return;
-    cx.save(); clipPlot(); cx.strokeStyle = "#ffd166"; cx.lineWidth = 2.5; cx.setLineDash([8, 5]);
-    cx.strokeRect(X(f.km[0]), Y(f.t[0]), X(f.km[1]) - X(f.km[0]), Y(f.t[1]) - Y(f.t[0])); cx.restore();
+    // outline of the area of interest, kept at least 36 px wide and tall so it stays visible on the whole line
+    let x0 = X(f.km[0]), x1 = X(f.km[1]), y0 = Y(f.t[0]), y1 = Y(f.t[1]);
+    if (x1 - x0 < 36) { const c = (x0 + x1) / 2; x0 = c - 18; x1 = c + 18; }
+    if (y1 - y0 < 36) { const c = (y0 + y1) / 2; y0 = c - 18; y1 = c + 18; }
+    cx.save(); clipPlot();
+    cx.fillStyle = "rgba(0,0,0,0.35)";                       // dim everything outside the box
+    cx.beginPath(); cx.rect(MARGIN.l, MARGIN.t, W - MARGIN.l - MARGIN.r, H - MARGIN.t - MARGIN.b); cx.rect(x1, y0, x0 - x1, y1 - y0); cx.fill("evenodd");
+    cx.strokeStyle = "#000"; cx.lineWidth = 5; cx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    cx.strokeStyle = "#ffd166"; cx.lineWidth = 2.5; cx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    cx.font = "700 13px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; const tw = cx.measureText(f.label).width + 12;
+    let lx = Math.min(Math.max(x0, MARGIN.l + 4), W - MARGIN.r - tw - 4), ly = y1 + 6; if (ly + 22 > H - MARGIN.b) ly = y0 - 28;
+    cx.fillStyle = "#ffd166"; cx.fillRect(lx, ly, tw, 22); cx.fillStyle = "#1f1d18"; cx.textAlign = "left"; cx.fillText(f.label, lx + 6, ly + 11);
+    cx.restore();
   }
 
   function drawSomerenLimits() {
@@ -370,7 +390,8 @@
     for (let k = Math.ceil(v.kmA / ks) * ks; k <= v.kmB + 1e-9; k += ks) { const x = X(k); cx.fillRect(x, H - MARGIN.b, 1, 5); cx.fillText(k.toFixed(ks < 1 ? 1 : 0), x, H - MARGIN.b + 7); }
     cx.fillText("Distance along SCAN029 (km)", (MARGIN.l + W - MARGIN.r) / 2, H - 18);
     cx.textAlign = "right"; cx.textBaseline = "middle";
-    for (let t = 0.2; t <= v.tB + 1e-9; t += 0.2) { const y = Y(t); cx.fillRect(MARGIN.l - 5, y, 5, 1); cx.fillText(t.toFixed(1), MARGIN.l - 8, y); }
+    const ts = niceStep(v.tB - v.tA, 8);
+    for (let t = Math.ceil(v.tA / ts) * ts; t <= v.tB + 1e-9; t += ts) { const y = Y(t); cx.fillRect(MARGIN.l - 5, y, 5, 1); cx.fillText(t.toFixed(ts < 0.1 ? 2 : 1), MARGIN.l - 8, y); }
     cx.save(); cx.translate(16, (MARGIN.t + H - MARGIN.b) / 2); cx.rotate(-Math.PI / 2); cx.textAlign = "center"; cx.fillText("Two-way time (s)", 0, 0); cx.restore();
     if (depthAxis || state.zoom === "someren") {
       cx.textAlign = "left";
@@ -432,16 +453,17 @@
   const run = () => state.runs[state.current] || null;
 
   async function refresh() {
-    const r = run(), key = state.stage <= 2 ? "" : state.stage === 3 ? `a:${state.attr}:${state.attrLut}` : `s:${r ? r.id : "none"}`;
+    const r = run(), key = state.stage <= 2 ? "" : state.stage === 3 ? `a:${state.attr}:${state.attrLut}` : `s:${r ? r.id + ":" + [...(r.hidden || [])].sort((a, b) => a - b).join(".") : "none"}`;
     if (key !== overlayKey) { overlay = key && !key.endsWith("none") ? await buildOverlay() : null; overlayKey = key; }
-    drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); drawShapGlobal(); drawShapSample();
+    drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); updateNeuronInfo(); drawShapGlobal(); drawShapSample();
     draw();
   }
 
-  function setZoom(z) { state.zoom = z; if (z !== "custom") state.geoFocus = null; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
+  function setZoom(z) { state.zoom = z; if (z !== "custom") state.zoomT = null; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
   function setStage(n) {
     state.stage = n;
     if (n === 6) setZoom("someren");
+    if (n === 2) setZoom("full");
     $$(".tag").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.stage === n)));
     $$(".card").forEach((c) => (c.hidden = +c.dataset.for !== n));
     refresh();
@@ -465,7 +487,9 @@
     const cols = neuronColors(r.side), cell = (w - 2 * pad) / r.side, maxHit = Math.max(...r.hits);
     for (let k = 0; k < r.side * r.side; k++) {
       const x = pad + (k % r.side) * cell, y = pad + Math.floor(k / r.side) * cell;
-      g.fillStyle = `rgb(${cols[k]})`; g.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      const off = !path && r.hidden && r.hidden.has(k);
+      g.globalAlpha = off ? 0.18 : 1; g.fillStyle = `rgb(${cols[k]})`; g.fillRect(x + 1, y + 1, cell - 2, cell - 2); g.globalAlpha = 1;
+      if (off) { g.strokeStyle = "rgba(90,84,70,.6)"; g.lineWidth = 1; g.strokeRect(x + 1.5, y + 1.5, cell - 3, cell - 3); }
       if (!path) { const rad = Math.sqrt(r.hits[k] / maxHit) * cell * 0.35; g.fillStyle = "rgba(20,20,20,.55)"; g.beginPath(); g.arc(x + cell / 2, y + cell / 2, Math.max(rad, r.hits[k] > 0 ? 1.5 : 0), 0, Math.PI * 2); g.fill(); }
     }
     if (path) {
@@ -482,6 +506,32 @@
         cur = nxt;
       }
       const [fx, fy] = P(path.final); g.fillStyle = "#ffd166"; g.strokeStyle = "#000"; g.beginPath(); g.arc(fx, fy, 7, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+  }
+
+  function shownShare() {
+    const r = run(); if (!r) return "";
+    const on = r.hits.reduce((acc, h, k) => acc + (r.hidden && r.hidden.has(k) ? 0 : h), 0), n = r.side * r.side - (r.hidden ? r.hidden.size : 0);
+    return `${n} of ${r.side * r.side} neurons shown, ${(on * 100).toFixed(0)}% of samples in the window`;
+  }
+  function updateNeuronInfo() { for (const id of ["#neuronInfo", "#neuronInfoVerdict"]) { const el = $(id); if (el) el.textContent = shownShare(); } }
+  function wireNeuronToggles() {
+    for (const [canvasId, allId, noneId] of [["#somGrid", "#neuronsAll", "#neuronsNone"], ["#somGridVerdict", "#neuronsAllV", "#neuronsNoneV"]]) {
+      const c = $(canvasId);
+      c.style.cursor = "pointer";
+      c.addEventListener("click", (e) => {
+        const r = run(); if (!r) return;
+        const rect = c.getBoundingClientRect(), sx = c.width / rect.width, pad = 10, cell = (c.width - 2 * pad) / r.side;
+        const col = Math.floor(((e.clientX - rect.left) * sx - pad) / cell), row = Math.floor(((e.clientY - rect.top) * sx - pad) / cell);
+        if (col < 0 || row < 0 || col >= r.side || row >= r.side) return;
+        const k = row * r.side + col; r.hidden ??= new Set();
+        if (e.shiftKey) {            // shift-click shows only this neuron
+          r.hidden = new Set([...Array(r.side * r.side).keys()].filter((q) => q !== k));
+        } else r.hidden.has(k) ? r.hidden.delete(k) : r.hidden.add(k);
+        updateNeuronInfo(); refresh();
+      });
+      $(allId).addEventListener("click", () => { const r = run(); if (!r) return; r.hidden = new Set(); updateNeuronInfo(); refresh(); });
+      $(noneId).addEventListener("click", () => { const r = run(); if (!r) return; r.hidden = new Set([...Array(r.side * r.side).keys()]); updateNeuronInfo(); refresh(); });
     }
   }
 
@@ -545,8 +595,8 @@
   function wireGeology() {
     $$("[data-geo]").forEach((b) => b.addEventListener("click", () => {
       const [k0, k1, t0, t1] = b.dataset.geo.split(",").map(Number);
-      ZOOMS.custom = [Math.max(0, k0 - 1.5), Math.min(48.5, k1 + 1.5)]; setZoom("custom");
-      state.geoFocus = { km: [k0, k1], t: [t0, t1] };
+      // the section stays where it is; only the outlined area of interest moves
+      state.geoFocus = { km: [k0, k1], t: [t0, t1], label: b.querySelector("b").textContent };
       $$("[data-geo]").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); draw();
     }));
     $("#geoColumns").addEventListener("change", (e) => { state.showGeoColumns = e.target.checked; draw(); });
@@ -586,7 +636,8 @@
       const feats = $$("#attrChecks input:checked").map((x) => x.value);
       if (feats.length < 2) { $("#progress").hidden = false; $("#progressText").textContent = "Choose at least two attributes."; return; }
       const side = +$("#neurons").value, g = meta.grid;
-      const kmRange = { full: [meta.km_min, meta.km_max], someren: ZOOMS.someren, well: ZOOMS.well, view: ZOOMS[state.zoom] }[$("#somArea").value];
+      const kmRange = { full: [meta.km_min, meta.km_max], someren: ZOOMS.someren, well: ZOOMS.well, view: [view().kmA, view().kmB] }[$("#somArea").value];
+      if ($("#somArea").value === "view") { $("#somTop").value = view().tA.toFixed(2); $("#somBase").value = view().tB.toFixed(2); }
       let tTop = +$("#somTop").value, tBase = +$("#somBase").value; if (tBase <= tTop + 0.1) tBase = tTop + 0.1;
       const toI = (k) => Math.max(0, Math.min(g.nx - 1, Math.round((k - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1))));
       const toJ = (t) => Math.max(0, Math.min(g.nt - 1, Math.round((t - meta.t_min) / g.dt)));
@@ -641,7 +692,7 @@
     for (const [id, key] of [["#attrOpacity", "attrOpacity"], ["#somOpacity", "somOpacity"], ["#verdictOpacity", "verdictOpacity"]])
       $(id).addEventListener("input", (e) => { state[key] = +e.target.value; draw(); });
 
-    const idle = "Move over the section to read position and values. Click to show a trace.";
+    const idle = "Drag a box on the section to zoom. Move over it to read values.";
     cv.addEventListener("mousemove", (e) => {
       const r = cv.getBoundingClientRect(), km = invX(e.clientX - r.left), t = invY(e.clientY - r.top), v = view();
       if (km < v.kmA || km > v.kmB || t < meta.t_min || t > meta.t_max) { $("#readout").textContent = idle; return; }
@@ -652,9 +703,27 @@
       if (state.stage >= 4 && rr && gi >= 0 && gi < g.nx && rr.bmu[gi * g.nt + j] !== 255) { const k = rr.bmu[gi * g.nt + j]; txt += `, neuron row ${Math.floor(k / rr.side) + 1}, column ${k % rr.side + 1}`; }
       $("#readout").textContent = txt;
     });
-    cv.addEventListener("click", (e) => {
-      const r = cv.getBoundingClientRect(), km = invX(e.clientX - r.left), t = invY(e.clientY - r.top), v = view();
-      if (km < v.kmA || km > v.kmB || t < meta.t_min || t > meta.t_max) return;
+    // a click keeps its stage action; a drag of more than 6 px draws a box and zooms to it
+    const pos = (e) => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+    cv.addEventListener("mousedown", (e) => { const [x, y] = pos(e); state.drag = { x0: x, y0: y, x1: x, y1: y, moved: false }; });
+    window.addEventListener("mousemove", (e) => {
+      const d = state.drag; if (!d) return; const [x, y] = pos(e);
+      d.x1 = Math.max(MARGIN.l, Math.min(W - MARGIN.r, x)); d.y1 = Math.max(MARGIN.t, Math.min(H - MARGIN.b, y));
+      if (Math.hypot(d.x1 - d.x0, d.y1 - d.y0) > 6) { d.moved = true; draw(); }
+    });
+    window.addEventListener("mouseup", (e) => {
+      const d = state.drag; state.drag = null; if (!d) return;
+      if (d.moved) {
+        const kA = invX(Math.min(d.x0, d.x1)), kB = invX(Math.max(d.x0, d.x1)), tA = invY(Math.min(d.y0, d.y1)), tB = invY(Math.max(d.y0, d.y1));
+        if (kB - kA > 0.2 && tB - tA > 0.03) {
+          ZOOMS.custom = [Math.max(meta.km_min, kA), Math.min(meta.km_max, kB)]; setZoom("custom");
+          state.zoomT = [Math.max(meta.t_min, tA), Math.min(meta.t_max, tB)]; $('[data-zoom="custom"]').disabled = false;
+        }
+        draw(); return;
+      }
+      if (e.target !== cv) return;
+      const [x, y] = pos(e), km = invX(x), t = invY(y), v = view();
+      if (km < v.kmA || km > v.kmB || t < v.tA || t > v.tB) return;
       if (state.stage === 1 && PICK_MODE) return pickAt(km, t, e.shiftKey);
       if (state.stage === 1) { state.traceKm = km; drawWiggle(); draw(); }
       if (state.stage === 5 && run()) { state.sample = { km, t }; requestExplain(); draw(); }
@@ -716,7 +785,7 @@
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
-    wire(); wireWellChips(); wireGeology(); wireBuilder(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
+    wire(); wireWellChips(); wireGeology(); wireBuilder(); wireNeuronToggles(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
   }
   init();
 })();

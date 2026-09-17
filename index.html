@@ -37,10 +37,11 @@
         <button data-zoom="full" aria-pressed="true">Whole line</button>
         <button data-zoom="someren" aria-pressed="false">Someren area</button>
         <button data-zoom="well" aria-pressed="false">Californië wells</button>
+        <button data-zoom="custom" aria-pressed="false" disabled title="Drag a box on the section to zoom">Zoom box</button>
       </div>
       <label class="seis">Seismic <select id="seisMap"></select> <button class="term" data-term="polarity">polarity</button></label>
       <div class="chips" id="wellChips" role="group" aria-label="Wells shown"></div>
-      <div class="readout" id="readout">Move over the section to read position and values. Click to show a trace.</div>
+      <div class="readout" id="readout">Drag a box on the section to zoom. Move over it to read values.</div>
     </div>
     <div class="canvaswrap"><canvas id="section" aria-label="Seismic section display"></canvas></div>
   </section>
@@ -72,7 +73,7 @@
     <!-- Geologic setting -->
     <div class="card" data-for="2" hidden>
       <h2>Geologic setting</h2>
-      <p class="small">Each event zooms to where it can be seen on SCAN029.</p>
+      <p class="small">Each event outlines where it can be seen on SCAN029.</p>
       <div class="events">
         <button data-geo="33.3,35.3,0.85,1.10" aria-pressed="false"><b>Carboniferous → Permian</b><small>Variscan uplift and erosion; Zechstein rests on Namurian shale at Californië (Base Permian unconformity)</small></button>
         <button data-geo="33.8,35.3,0.70,0.82" aria-pressed="false"><b>Late Cretaceous</b><small>Inversion of the Roer Valley Graben; at Californië, Maastricht chalk rests on the Lower Buntsandstein</small></button>
@@ -117,7 +118,7 @@
         </select>
       </label>
       <label class="field">Area along the line
-        <select id="somArea"><option value="full">Whole line</option><option value="someren">Someren area (0–21 km)</option><option value="well">Californië wells (29–40 km)</option><option value="view">Current zoom view</option></select>
+        <select id="somArea"><option value="full">Whole line</option><option value="someren">Someren area (0–21 km)</option><option value="well">Californië wells (29–40 km)</option><option value="view">Current view (zoom box)</option></select>
       </label>
       <div class="row2">
         <label class="field">Top (s) <input type="number" id="somTop" min="0.15" max="2.9" step="0.05" value="0.15"></label>
@@ -127,9 +128,11 @@
       <button class="big run" id="runSom">Train the SOM</button>
       <div class="progress" id="progress" hidden><div class="bar"><span id="progressBar"></span></div><p class="small" id="progressText"></p></div>
       <label class="field">Overlay opacity <input type="range" id="somOpacity" min="0" max="1" step="0.05" value="0.75"></label>
-      <h3>The trained map</h3>
-      <canvas id="somGrid" width="268" height="268" aria-label="SOM neuron grid with 2D colors"></canvas>
-      <p class="small">Each square is a neuron, colored by its position on the map. Dot size shows the share of samples assigned to it. Neighboring neurons hold similar attribute combinations.</p>
+      <h3>The trained map</h3><button class="term help" data-term="helpSomGrid">Help me read this plot</button>
+      <canvas id="somGrid" width="268" height="268" aria-label="SOM neuron grid with 2D colors; click a neuron to switch it on or off"></canvas>
+      <div class="row2"><button class="big" id="neuronsAll">Show all neurons</button><button class="big" id="neuronsNone">Hide all neurons</button></div>
+      <p class="small" id="neuronInfo"></p>
+      <p class="small">Click a neuron to switch it on or off on the section; shift-click shows only that neuron. Dot size is the share of samples assigned to each neuron.</p>
       <h3>Attributes that repeat each other</h3>
       <div id="redundancy" class="small"></div>
       <h3>Runs</h3>
@@ -140,11 +143,13 @@
     <div class="card" data-for="5" hidden>
       <h2>SHAP</h2>
       <p class="small" id="shapRunLabel">Train a SOM in stage 3 first.</p>
-      <h3>How far each attribute moves samples across the map</h3>
+      <h3>How far each attribute moves samples across the map</h3><button class="term help" data-term="helpShapGlobal">Help me read this plot</button>
       <canvas id="shapGlobal" width="268" height="200" aria-label="Mean SHAP magnitude by attribute"></canvas>
       <p class="small">Mean <button class="term" data-term="shap">SHAP</button> magnitude over 400 random samples, as a fraction of the map width. Axis fixed at 0–0.3.</p>
       <h3 id="sampleTitle">Click the section to explain a sample</h3>
+      <button class="term help" data-term="helpShapPath">Help me read this plot</button>
       <canvas id="shapPath" width="268" height="268" aria-label="Path of a sample across the SOM grid"></canvas>
+      <button class="term help" data-term="helpShapBars">Help me read this plot</button>
       <canvas id="shapLocal" width="268" height="200" aria-label="SHAP values for the clicked sample"></canvas>
       <p class="small">The path starts at the average position of all samples and adds each attribute's SHAP value in turn, largest first, ending at the sample's position on the map.</p>
     </div>
@@ -154,7 +159,9 @@
       <h2>Someren prospect</h2>
       <p class="small">ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops are placed in two-way time with the migration velocities.</p>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
-      <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid"></canvas>
+      <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid; click a neuron to switch it on or off"></canvas>
+      <div class="row2"><button class="big" id="neuronsAllV">Show all neurons</button><button class="big" id="neuronsNoneV">Hide all neurons</button></div>
+      <p class="small" id="neuronInfoVerdict"></p>
     </div>
   </aside>
 </main>

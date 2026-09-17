@@ -115,3 +115,7 @@ button,select,input{font:inherit}
 .ref{margin:8px 0 0}
 .ref img{width:100%;height:auto;display:block;border:1px solid var(--paper-edge)}
 .ref figcaption{font-size:.75rem;color:var(--ink-soft);margin-top:4px}
+
+.term.help{display:block;margin:0 0 4px;font-size:.8rem;color:#9d0208;text-decoration:underline dotted}
+.seg button:disabled{opacity:.5;cursor:default}
+.glossary{max-width:380px}
