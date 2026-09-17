@@ -6,7 +6,7 @@ The page loads precomputed data and trains the SOM in the browser, so it runs on
 
 ## Exercise
 
-1. The section, the CAL-GT-04 well tie and formation tops at the east end, and the Someren license crossing with its stated 500–1500 m target depth range at the west end.
+1. The section, with the Californië wells, karst zones and Tegelen fault zone at the east end, and the Someren license crossing and ASTEN-GT-02 at the west end. A short note under the title states the candidate aquifers at Someren and the producing interval at Californië.
 2. Attributes, one at a time, over the whole line.
 3. A SOM trained on a chosen combination of attributes and number of neurons.
 4. SHAP values for that SOM, showing which attributes place samples where on the map, followed by further runs with other combinations.
@@ -14,11 +14,11 @@ The page loads precomputed data and trains the SOM in the browser, so it runs on
 
 ## Stages
 
-1. **Line and well.** The PreSTM full stack along the whole line (0–48.5 km, 0.15–3.0 s), with zoom views of the Someren area and the Californië wells. CAL-GT-04 is projected onto the line with its formation tops, horizons and formation shading; the Someren license crossing and target depth range are marked. Well control can be hidden. Clicking the section shows the trace at that location.
+1. **Line and well.** The PreSTM full stack along the whole line (0–48.5 km, 0.15–3.0 s), with zoom views of the Someren area and the Californië wells. CAL-GT-04 is projected onto the line with its formation tops, horizons and formation shading; the Someren license crossing is marked with dashed lines. Buttons above the section switch each well, the karst zones, the Tegelen fault zone and the formation names on and off in every stage; labels sit above the section. Well control can be hidden. Clicking the section shows the trace at that location.
 2. **Attributes.** Fifteen attributes, including the amplitude of the full, near, mid and far stacks, overlaid on the seismic with fixed color scales.
 3. **Build a SOM.** Any combination of attributes and a SOM of 4 to 100 neurons, trained in the browser. The section is colored by each sample's neuron on a 2D color bar, the neuron grid shows how many samples each neuron holds, pairs of chosen attributes that correlate at 0.8 or more are listed, and every run is kept for comparison.
 4. **SHAP.** For the current run, how far each attribute moves samples across the map on average, and, for a clicked sample, the path from the average position to the sample's neuron built from each attribute's SHAP value.
-5. **Someren prospect.** The current SOM in the Someren area with the license crossing and target depth range, and a depth scale from the migration velocities at the center of the crossing.
+5. **Someren prospect.** The current SOM in the Someren area with ASTEN-GT-02 and its tops, and a depth scale from the migration velocities at the center of the license crossing.
 
 ## Running locally
 

@@ -3,7 +3,7 @@
   "use strict";
 
   const ZOOMS = { full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0] };
-  const MARGIN = { l: 58, r: 66, t: 14, b: 42 };
+  const MARGIN = { l: 58, r: 66, t: 70, b: 42 };   // top margin holds the labels, above the seismic
   const KEY_TOPS = new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
     "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]);
   const PICK_MODE = new URLSearchParams(location.search).has("pick");
@@ -19,7 +19,7 @@
   const state = {
     stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: true, showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, showSomeren: true, showNames: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -112,8 +112,29 @@
   const hz = (unit) => horizonsNow().find((h) => h.unit === unit);
 
   /* ---------- drawing ---------- */
+  let topLabels = [];
+  const topLabel = (x, text, bg, fg = "#1f1d18") => { if (x >= MARGIN.l - 2 && x <= W - MARGIN.r + 2) topLabels.push({ x, text, bg, fg }); };
+
+  function renderTopLabels() {
+    // labels above the plot, placed in up to three rows so they do not overlap, with a tick down to the plot edge
+    cx.save(); cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "left";
+    const rows = [[], [], []], rowH = 19;
+    for (const l of topLabels.sort((a, b) => a.x - b.x)) {
+      const w = cx.measureText(l.text).width + 12;
+      let x0 = Math.min(Math.max(l.x - w / 2, MARGIN.l), W - MARGIN.r - w), r = 0;
+      for (; r < rows.length; r++) if (!rows[r].some(([a, b]) => x0 < b + 6 && x0 + w > a - 6)) break;
+      if (r === rows.length) r = rows.length - 1;
+      rows[r].push([x0, x0 + w]);
+      const y = 4 + r * rowH;
+      cx.strokeStyle = l.bg; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(l.x, y + 16); cx.lineTo(l.x, MARGIN.t); cx.stroke();
+      cx.fillStyle = l.bg; cx.fillRect(x0, y, w, 16); cx.fillStyle = l.fg; cx.fillText(l.text, x0 + 6, y + 8);
+    }
+    cx.restore();
+  }
+
   function draw() {
     if (!meta || !W) return;
+    topLabels = [];
     cx.clearRect(0, 0, W, H); cx.fillStyle = "#111"; cx.fillRect(0, 0, W, H);
     drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
     const s = state.stage, control = !(s === 1 && state.hideControl);
@@ -122,11 +143,11 @@
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && state.showWell) drawWell();
     drawSomerenLimits();
-    if ((s === 1 || s === 5) && state.showSomeren) drawSomeren();
     if (s === 1) drawTraceMarker();
     if (s === 1 && PICK_MODE) drawPicks();
     if (s === 4 && state.sample) drawSampleMarker();
     drawAxes(control);
+    renderTopLabels();
   }
 
   const PICK_HALF_KM = 0.6;   // horizons are drawn as short picks this far either side of the well top
@@ -137,10 +158,9 @@
     const [a, b] = meta.someren.km; cx.save(); clipPlot();
     cx.setLineDash([8, 6]); cx.lineWidth = 1.8; cx.strokeStyle = "rgba(118,183,178,.95)";
     for (const k of [a, b]) { cx.beginPath(); cx.moveTo(X(k), MARGIN.t); cx.lineTo(X(k), H - MARGIN.b); cx.stroke(); }
-    cx.setLineDash([]); cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textBaseline = "bottom"; cx.textAlign = "center";
-    const lab = "Someren license", w = cx.measureText(lab).width + 10, xm = (X(a) + X(b)) / 2, yb = H - MARGIN.b - 6;
-    if (X(b) - X(a) > w) { cx.fillStyle = "rgba(118,183,178,.95)"; cx.fillRect(xm - w / 2, yb - 17, w, 17); cx.fillStyle = "#10201f"; cx.fillText(lab, xm, yb - 2); }
     cx.restore();
+    const xm = (Math.max(X(a), MARGIN.l) + Math.min(X(b), W - MARGIN.r)) / 2;
+    if (X(b) > MARGIN.l && X(a) < W - MARGIN.r) topLabel(xm, "Someren exploration license (approx.)", "#76b7b2", "#10201f");
   }
 
   function runs(n, ok) { const out = []; let a = -1; for (let i = 0; i <= n; i++) { if (i < n && ok(i)) { if (a < 0) a = i; } else if (a >= 0) { out.push([a, i - 1]); a = -1; } } return out; }
@@ -235,14 +255,13 @@
       }
       // karst zones and the fault zone recorded on the mud log
       for (const ev of wl.events || []) {
-        if (ev.kind === "fault") {
+        if (ev.kind === "fault" && state.showFault) {
           const seg = p.filter((q) => q.md >= ev.md_top && q.md <= ev.md_base);
           cx.strokeStyle = "#e63946"; cx.lineWidth = 7; cx.globalAlpha = 0.85; cx.beginPath();
           [{ km: ev.km_top, twt: ev.twt_top }, ...seg, { km: ev.km_base, twt: ev.twt_base }].forEach((q, i) => (i ? cx.lineTo : cx.moveTo).call(cx, X(q.km), Y(q.twt)));
           cx.stroke(); cx.globalAlpha = 1;
-          if (state.zoom === st.zoom) { cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textAlign = "left"; cx.textBaseline = "middle"; const tx = X(ev.km_base) + 10, ty = Y((ev.twt_top + ev.twt_base) / 2), tw = cx.measureText(ev.label).width + 10;
-            cx.fillStyle = "#e63946"; cx.fillRect(tx, ty - 8, tw, 16); cx.fillStyle = "#fff"; cx.fillText(ev.label, tx + 5, ty); }
-        } else if (ev.kind === "karst") {
+
+        } else if (ev.kind === "karst" && state.showKarst) {
           const xk = X(ev.km_top), yk = Y(ev.twt_top); cx.fillStyle = "#4cc9f0"; cx.strokeStyle = "#000"; cx.lineWidth = 1;
           cx.beginPath(); cx.moveTo(xk + 7, yk); cx.lineTo(xk, yk - 5); cx.lineTo(xk - 7, yk); cx.lineTo(xk, yk + 5); cx.closePath(); cx.fill(); cx.stroke();
         }
@@ -250,31 +269,8 @@
       const off = p.map((q) => q.offset_m);
       const dist = Math.max(...off) - Math.min(...off) < 50 ? `${(off[0] / 1000).toFixed(1)} km` : `${(Math.min(...off) / 1000).toFixed(1)}–${(Math.max(...off) / 1000).toFixed(1)} km`;
       const label = `${wl.name}${wl.year ? ` (drilled ${wl.year})` : ""}, ${dist} from the line${wl.estimated_path ? ", path estimated" : ""}`;
-      const top = p.find((q) => q.twt >= meta.t_min + 0.02) || p[0];
-      cx.font = "600 13px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; const w = cx.measureText(label).width + 12;
-      let lx = X(top.km) + 8; if (lx + w > W - MARGIN.r - 4) lx = X(top.km) - 8 - w;
-      const ly = Y(top.twt) - 2 + st.labelDy;
-      cx.fillStyle = st.color; cx.fillRect(lx, ly, w, 20); cx.fillStyle = "#1f1d18"; cx.textAlign = "left"; cx.fillText(label, lx + 6, ly + 10);
+      topLabel(X(p[0].km), label, st.color);
     }
-    cx.restore();
-  }
-
-  function drawSomeren() {
-    const so = meta.someren, b = so.depth_band; cx.save(); clipPlot();
-    // target depth range converted to two-way time with the migration velocities, drawn across the license crossing
-    const inRange = b.km.map((k, i) => i).filter((i) => b.km[i] >= so.km[0] - 0.5 && b.km[i] <= so.km[1] + 0.5);
-    if (inRange.length > 1) {
-      cx.beginPath(); inRange.forEach((i, n) => (n ? cx.lineTo : cx.moveTo).call(cx, X(b.km[i]), Y(b.top[i])));
-      [...inRange].reverse().forEach((i) => cx.lineTo(X(b.km[i]), Y(b.base[i]))); cx.closePath();
-      cx.setLineDash([7, 5]); cx.strokeStyle = "#76b7b2"; cx.lineWidth = 2; cx.stroke(); cx.setLineDash([]);
-    }
-    const x0 = X(so.km[0]), x1 = X(so.km[1]), y = MARGIN.t + 4;
-    cx.strokeStyle = "#76b7b2"; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(x0, y + 10); cx.lineTo(x0, y); cx.lineTo(x1, y); cx.lineTo(x1, y + 10); cx.stroke();
-    if (X(so.km[1]) < MARGIN.l + 20 || X(so.km[0]) > W - MARGIN.r - 20) { cx.restore(); return; }
-    const lab = `Someren exploration license (approx.), target ${b.depth_m[0]}–${b.depth_m[1]} m`;
-    const ly = MARGIN.t + 6;
-    cx.font = "600 13px Barlow, Arial, sans-serif"; const w = cx.measureText(lab).width + 12, lx = Math.max(MARGIN.l + 4, x0);
-    cx.fillStyle = "#76b7b2"; cx.fillRect(lx, ly, w, 20); cx.fillStyle = "#10201f"; cx.textAlign = "left"; cx.textBaseline = "middle"; cx.fillText(lab, lx + 6, ly + 10);
     cx.restore();
   }
 
@@ -282,9 +278,7 @@
     const x = X(state.traceKm); if (x < MARGIN.l || x > W - MARGIN.r) return;
     cx.save(); cx.strokeStyle = "rgba(200,54,45,.9)"; cx.lineWidth = 1.5; cx.setLineDash([3, 3]);
     cx.beginPath(); cx.moveTo(x, MARGIN.t); cx.lineTo(x, H - MARGIN.b); cx.stroke();
-    cx.setLineDash([]); cx.font = "600 11px Barlow, Arial, sans-serif"; const lab = "Trace shown at right", tw = cx.measureText(lab).width + 8;
-    cx.fillStyle = "rgba(200,54,45,.9)"; cx.fillRect(x + 4, H - MARGIN.b - 20, tw, 15); cx.fillStyle = "#fff"; cx.textAlign = "left"; cx.textBaseline = "middle"; cx.fillText(lab, x + 8, H - MARGIN.b - 12.5);
-    cx.restore();
+    cx.restore(); topLabel(x, "Trace shown at right", "#c8362d", "#fff");
   }
 
   function drawSampleMarker() {
@@ -489,6 +483,11 @@
       b.addEventListener("click", () => { state.hiddenWells.has(w.name) ? state.hiddenWells.delete(w.name) : state.hiddenWells.add(w.name); b.setAttribute("aria-pressed", String(!state.hiddenWells.has(w.name))); draw(); });
       box.append(b);
     }
+    for (const [key, text, color] of [["showKarst", "Karst zones ◆", "#4cc9f0"], ["showFault", "Tegelen fault zone", "#e63946"]]) {
+      const c = document.createElement("button"); c.textContent = text; c.setAttribute("aria-pressed", "true"); c.style.setProperty("--chip", color);
+      c.addEventListener("click", () => { state[key] = !state[key]; c.setAttribute("aria-pressed", String(state[key])); draw(); });
+      box.append(c);
+    }
     const n = document.createElement("button"); n.textContent = "Formation names"; n.setAttribute("aria-pressed", "true");
     n.addEventListener("click", () => { state.showNames = !state.showNames; n.setAttribute("aria-pressed", String(state.showNames)); draw(); });
     box.append(n);
@@ -540,7 +539,7 @@
 
     $$(".tag").forEach((b) => b.addEventListener("click", () => setStage(+b.dataset.stage)));
     $$("[data-zoom]").forEach((b) => b.addEventListener("click", () => { setZoom(b.dataset.zoom); draw(); }));
-    for (const [id, key] of [["#showWell", "showWell"], ["#showUnits", "showUnits"], ["#showInterp", "showInterp"], ["#showSomeren", "showSomeren"], ["#showSomeren5", "showSomeren"]]) $(id).addEventListener("change", (e) => { state[key] = e.target.checked; draw(); });
+    for (const [id, key] of [["#showWell", "showWell"], ["#showUnits", "showUnits"], ["#showInterp", "showInterp"], ]) $(id).addEventListener("change", (e) => { state[key] = e.target.checked; draw(); });
     const hBoxes = [$("#showHorizons"), ...$$(".syncHorizons")];
     hBoxes.forEach((box) => box.addEventListener("change", (e) => { state.showHorizons = e.target.checked; hBoxes.forEach((b) => (b.checked = state.showHorizons)); draw(); }));
     $("#hideWellControl").addEventListener("click", (e) => {

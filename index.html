@@ -16,6 +16,10 @@
     <h1>The SCAN029 case</h1>
     <p>From the Californië geothermal wells to the Someren prospect, southeastern Netherlands</p>
   </div>
+  <div class="job" aria-label="Exploration context">
+    <p><strong>Someren license:</strong> candidate aquifers are the Cenozoic sands tested in ASTEN-GT-02 (1987): the Breda Formation, the Voort Sand of the Veldhoven Formation, the Basal Dongen Sand and the Houthem Formation.</p>
+    <p><strong>Californië wells:</strong> warm water is produced from the Dinantian carbonate of the Zeeland Formation, through karst and the Tegelen fault zone.</p>
+  </div>
   <nav class="stages" aria-label="Stages">
     <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
     <button class="tag" data-stage="2"><span>2</span>Attributes</button>
@@ -44,11 +48,10 @@
     <div class="card" data-for="1">
       <h2>Line and well</h2>
       <fieldset>
-        <label><input type="checkbox" id="showWell" checked> Wells, tops, karst zones (◆) and fault zone</label>
+        <label><input type="checkbox" id="showWell" checked> Wells</label>
         <label><input type="checkbox" id="showHorizons" checked> Formation picks</label>
         <label><input type="checkbox" id="showUnits" checked> Formation shading</label>
         <label><input type="checkbox" id="showInterp" checked> Interpolated pick segments</label>
-        <label><input type="checkbox" id="showSomeren" checked> Someren target depth range</label>
       </fieldset>
       <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
       <div class="pick" id="pickPanel" hidden>
@@ -120,8 +123,7 @@
     <!-- Stage 5 -->
     <div class="card" data-for="5" hidden>
       <h2>Someren prospect</h2>
-      <p class="small">No well lies on the line in the Someren license. The shaded band is the 500–1500 m depth range stated by the developer, converted to two-way time with the migration velocities.</p>
-      <label><input type="checkbox" id="showSomeren5" checked> License and target depth</label>
+      <p class="small">ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops are placed in two-way time with the migration velocities.</p>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
       <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid"></canvas>
     </div>
