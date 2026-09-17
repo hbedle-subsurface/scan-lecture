@@ -50,8 +50,6 @@ ATTRIBUTES = {
         geology="Changes in amplitude with angle depend on elastic contrasts. In the Carboniferous here the near and far stacks correlate poorly, so noise contributes strongly.",
         source="Amplitude-versus-angle concept after Shuey (1985) and Rutherford and Williams (1989)."),
 }
-PRESET_LABELS = {"amplitude_impedance": "Amplitude and impedance", "frequency_continuity": "Frequency and continuity",
-                 "combined": "Combined", "combined_far_near": "Combined plus far minus near"}
 UNITS = [
     dict(name="North Sea Group", top=None, base="Houthem Formation", color="#d9b75f"),
     dict(name="Chalk Group and underlying sandstone", top="Houthem Formation", base="Zechstein Upper Claystone Formation", color="#8fb996"),
@@ -75,7 +73,6 @@ def main():
     C.DATA.mkdir(exist_ok=True)
     s1 = np.load(C.WORK / "step1_read.npz"); well = json.load(open(C.WORK / "step2_well.json"))
     hz = json.load(open(C.WORK / "step3_horizons.json")); A = np.load(C.WORK / "step4_attributes.npz")
-    som = np.load(C.WORK / "step5_som.npz"); sominfo = json.load(open(C.WORK / "step5_som.json"))
     t0, t1 = int(C.T_MIN / C.DT), int(C.T_MAX / C.DT)
 
     sec = s1["full"][:, t0:t1]; clip = float(np.percentile(np.abs(sec), 99.0))
@@ -87,16 +84,6 @@ def main():
         if m["cmap"] == "RdBu_r": hi = max(abs(lo), abs(hi)); lo = -hi
         np.clip(np.round((v - lo) / (hi - lo) * 255), 0, 255).astype(np.uint8).tofile(C.DATA / f"attr_{k}.bin")
         attrs[k] = dict(m, min=round(lo, 4), max=round(hi, 4), lut=lut(m["cmap"]))
-    presets = {}
-    for k, info in sominfo.items():
-        som[k].tofile(C.DATA / f"som_{k}.bin")
-        presets[k] = dict(label=PRESET_LABELS[k], **info)
-
-    shap_meta = {}
-    for k in sominfo:
-        sh = np.load(C.WORK / f"step7_shap_{k}.npz"); info = json.load(open(C.WORK / f"step7_shap_{k}.json"))
-        sh[k].tofile(C.DATA / f"shap_{k}.bin"); sh[k + "_membership"].tofile(C.DATA / f"membership_{k}.bin")
-        shap_meta[k] = info
     meta = dict(
         line="SCAN029 (L2EBN2020ASCAN029)", km_min=float(s1["sec_km"][0]), km_max=float(s1["sec_km"][-1]),
         t_min=t0 * C.DT, t_max=t1 * C.DT, dt=C.DT, nt=t1 - t0,
@@ -107,8 +94,7 @@ def main():
                   tops=[dict(unit=t["unit"], md=t["md"], tvdss=round(t["tvdss"], 1), km=round(t["km"], 4), twt=round(t["twt"], 4), offset_m=round(t["offset_m"])) for t in well["tops"]],
                   depth_axis=well["depth_axis"]),
         horizons=dict(km=[round(x, 4) for x in hz["km"]], items=[dict(unit=u, **HORIZON_STYLE[u], **hz["horizons"][u]) for u in HORIZON_STYLE]),
-        shap=shap_meta,
-        units=UNITS, attributes=attrs, presets=presets, n_classes=8,
+        units=UNITS, attributes=attrs,
     )
     json.dump(meta, open(C.DATA / "meta.json", "w"), separators=(",", ":"))
     print("clip", clip, "files:", sorted(p.name for p in C.DATA.iterdir()))

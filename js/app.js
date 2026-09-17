@@ -2,10 +2,8 @@
 (() => {
   "use strict";
 
-  const CLASS_COLORS = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#b07aa1", "#edc948", "#76b7b2", "#ff9da7"];
   const ZOOMS = { full: [15.0, 40.0], well: [30.0, 39.0] };
   const MARGIN = { l: 58, r: 66, t: 14, b: 42 };
-  const SHAP_RANGE = 0.5;       // fixed color and bar range for SHAP values (membership units)
   const KEY_TOPS = new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
     "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]);
   const PICK_MODE = new URLSearchParams(location.search).has("pick");
@@ -13,14 +11,15 @@
   const GLOSSARY = {
     impedance: ["Acoustic impedance", "Density multiplied by P-wave velocity. A reflection forms where impedance changes across a boundary; the size and sign of the change set the reflection amplitude and polarity."],
     som: ["Self-organizing map (SOM)", "An unsupervised neural network that arranges prototype vectors on a 2D grid so that similar attribute combinations sit near each other (Kohonen, 1982). Each sample is assigned to its closest prototype, and here the prototypes are grouped into 8 classes."],
+    neuron: ["Neuron", "One prototype on the SOM grid: a vector with one value per attribute. Each sample is assigned to the neuron whose prototype is closest to its attribute values, after each attribute is converted to standard deviations from its mean."],
     zscore: ["Standard deviations", "Each attribute is rescaled by subtracting its mean and dividing by its standard deviation over the whole window, so attributes with different units can be compared."],
-    shap: ["SHAP values", "Shapley additive explanations (Lundberg and Lee, 2017). For one sample, each attribute receives the change it makes to the model output, averaged over every order in which attributes can be added. The base value plus all SHAP values equals the output. Here the output is the sample's soft membership in its SOM class, computed from distances to the SOM prototypes."],
+    shap: ["SHAP values", "Shapley additive explanations (Lundberg and Lee, 2017). For one sample, each attribute receives the change it makes to the model output, averaged over the orders in which attributes can be added. Here the output is the sample's position on the SOM grid, which sets its color. The average position of all samples plus every attribute's SHAP value gives the sample's position. Values are estimated from random attribute orderings (Strumbelj and Kononenko, 2014)."],
   };
 
   const state = {
     stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: true, showInterp: true, hideControl: false,
-    attr: "coherence", attrOpacity: 0.75, preset: "combined", somOpacity: 0.7, verdictOpacity: 0.55,
-    shapView: "classes", shapOpacity: 0.7, sample: null, traceKm: 34.19,
+    attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
+    runs: [], current: -1, busy: false,
   };
 
   const $ = (s) => document.querySelector(s);
@@ -50,7 +49,7 @@
     ctx.putImageData(img, 0, 0); return c;
   }
   const grayAt = (i, j) => { const g = Math.max(0, Math.min(255, 128 - section[i * meta.nt + j] * 1.6)); return [g, g, g]; };
-  const DIVERGING = (() => { // blue - off-white - red, fixed ±SHAP_RANGE
+  const DIVERGING = (() => { // blue - off-white - red
     const a = [49, 99, 173], b = [247, 244, 236], r = [190, 45, 40];
     return Array.from({ length: 256 }, (_, k) => { const u = k / 127.5 - 1, e = u < 0 ? a : r, t = Math.abs(u); return b.map((x, i) => Math.round(x + (e[i] - x) * t)); });
   })();
@@ -61,20 +60,9 @@
       const d = await loadBin(`attr_${state.attr}.bin`, Uint8Array), lut = meta.attributes[state.attr].lut;
       return { img: raster(g.nx, nt, (i, j) => lut[d[i * nt + j]]), km: [g.km_min, g.km_max], t: [meta.t_min, meta.t_max] };
     }
-    if (s === 3 || s === 5 || (s === 4 && state.shapView === "classes")) {
-      const d = await loadBin(`som_${state.preset}.bin`, Uint8Array), rgb = CLASS_COLORS.map(hexToRgb);
-      return { img: raster(g.nx, nt, (i, j) => rgb[d[i * nt + j]]), km: [g.km_min, g.km_max], t: [meta.t_min, meta.t_max] };
-    }
-    if (s === 4) {
-      const sh = meta.shap[state.preset], feats = meta.presets[state.preset].features, fi = feats.indexOf(state.shapView);
-      const d = await loadBin(`shap_${state.preset}.bin`, Int8Array), M = feats.length;
-      const img = raster(sh.nx, sh.nt, (i, j) => {
-        const v = d[(i * sh.nt + j) * M + fi] / 127 * sh.scale;
-        return DIVERGING[Math.max(0, Math.min(255, Math.round((v / SHAP_RANGE + 1) * 127.5)))];
-      });
-      const dk = (g.km_max - g.km_min) / (g.nx - 1);
-      return { img, km: [g.km_min - dk * sh.trace_step / 2, g.km_min + dk * (sh.nx * sh.trace_step - sh.trace_step / 2)],
-        t: [meta.t_min - meta.dt * sh.sample_step / 2, meta.t_min + meta.dt * (sh.nt * sh.sample_step - sh.sample_step / 2)] };
+    if (s >= 3 && run()) {
+      const r = run(), cols = neuronColors(r.side);
+      return { img: raster(g.nx, nt, (i, j) => cols[r.bmu[i * nt + j]]), km: [g.km_min, g.km_max], t: [meta.t_min, meta.t_max] };
     }
     return null;
   }
@@ -130,7 +118,7 @@
     drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
     const s = state.stage, control = s === 5 || (!state.hideControl && s !== 5);
     if (s === 1 && state.showUnits && control) drawUnits(state.zoom === "well");
-    if (overlay && s > 1) drawRaster(overlay, { 2: state.attrOpacity, 3: state.somOpacity, 4: state.shapOpacity, 5: state.verdictOpacity }[s]);
+    if (overlay && s > 1) drawRaster(overlay, { 2: state.attrOpacity, 3: state.somOpacity, 4: state.somOpacity, 5: state.verdictOpacity }[s]);
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && (s === 1 || s === 5) && state.showWell) drawWell();
     if (s === 1) drawTraceMarker();
@@ -275,21 +263,6 @@
     $("#attrMeasures").textContent = a.measures; $("#attrGeology").textContent = a.geology; $("#attrSource").textContent = a.source;
   }
 
-  function drawLegend(el) {
-    const p = meta.presets[state.preset], feats = p.features, K = p.class_means_z.length; el.innerHTML = "";
-    const cellW = 30, cellH = 22, left = 64, top = 64, w = left + feats.length * cellW + 34, h = top + K * cellH + 2;
-    const c = makeCanvas(w * 2, h * 2), g = c.getContext("2d"); g.scale(2, 2); c.style.width = "100%";
-    const div = (v) => `rgb(${DIVERGING[Math.round((Math.max(-2, Math.min(2, v)) / 2 + 1) * 127.5)]})`;
-    g.font = "11px Barlow, Arial, sans-serif"; g.fillStyle = "#1f1d18";
-    feats.forEach((f, i) => { g.save(); g.translate(left + i * cellW + cellW / 2 + 4, top - 6); g.rotate(-Math.PI / 3); g.fillText(shortName(f), 0, 0); g.restore(); });
-    p.class_means_z.forEach((z, k) => {
-      const y = top + k * cellH; g.fillStyle = CLASS_COLORS[k]; g.fillRect(4, y + 3, 16, cellH - 6);
-      g.fillStyle = "#1f1d18"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(`${k + 1}  ${(p.class_fraction[k] * 100).toFixed(0)}%`, 24, y + cellH / 2);
-      z.forEach((v, i) => { g.fillStyle = div(v); g.fillRect(left + i * cellW, y + 1, cellW - 2, cellH - 2); g.fillStyle = Math.abs(v) > 1.2 ? "#fff" : "#1f1d18"; g.textAlign = "center"; g.fillText(v.toFixed(1), left + i * cellW + cellW / 2 - 1, y + cellH / 2); });
-    });
-    el.append(c);
-  }
-
   function hbars(canvas, labels, values, { min, max, colors, title, zeroLine = true, valueFmt = (v) => v.toFixed(2) }) {
     const g = canvas.getContext("2d"), w = canvas.width, h = canvas.height, left = 74, right = 30, top = title ? 20 : 6, bottom = 18;
     g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, h);
@@ -310,48 +283,13 @@
     });
   }
 
-  async function drawShapPanels() {
-    const p = meta.presets[state.preset], sh = meta.shap[state.preset], feats = p.features, names = feats.map(shortName);
-    const local = $("#shapLocal"), global = $("#shapGlobal");
-    // local explanation
-    if (!state.sample) {
-      const g = local.getContext("2d"); g.fillStyle = "#fffaf0"; g.fillRect(0, 0, local.width, local.height);
-      $("#sampleTitle").textContent = "Click the section to explain a sample";
-    } else {
-      const d = await loadBin(`shap_${state.preset}.bin`, Int8Array), mem = await loadBin(`membership_${state.preset}.bin`, Uint8Array);
-      const som = await loadBin(`som_${state.preset}.bin`, Uint8Array), g = meta.grid, M = feats.length;
-      const gi = Math.round((state.sample.km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1));
-      const si = Math.max(0, Math.min(sh.nx - 1, Math.round(gi / sh.trace_step))), sj = Math.max(0, Math.min(sh.nt - 1, Math.round((state.sample.t - meta.t_min) / meta.dt / sh.sample_step)));
-      const k = som[(si * sh.trace_step) * meta.nt + sj * sh.sample_step];
-      const vals = feats.map((_, f) => d[(si * sh.nt + sj) * M + f] / 127 * sh.scale), base = sh.base[k], out = mem[si * sh.nt + sj] / 255;
-      $("#sampleTitle").textContent = `${state.sample.km.toFixed(2)} km, ${state.sample.t.toFixed(2)} s: class ${k + 1}`;
-      hbars(local, ["Base value", ...names, "Membership"], [base, ...vals, out], {
-        min: -SHAP_RANGE, max: 1, title: `Class ${k + 1}: base value + SHAP = membership`,
-        colors: ["#9a8f73", ...vals.map((v) => (v >= 0 ? "#be2d28" : "#3163ad")), CLASS_COLORS[k]] });
-      state.sample.cls = k;
-    }
-    // global importance: the selected sample's class, or all samples
-    const k = state.sample?.cls;
-    const vals = k == null ? sh.importance_overall : sh.importance_by_class[k];
-    hbars(global, names, vals, { min: 0, max: 0.4, zeroLine: false, colors: feats.map(() => (k == null ? "#5a5446" : CLASS_COLORS[k])),
-      title: k == null ? "All samples" : `Samples in class ${k + 1}`, valueFmt: (v) => v.toFixed(3) });
-  }
-
-  function drawShapBar() {
-    const c = $("#shapBar"), g = c.getContext("2d"); c.hidden = state.shapView === "classes"; if (c.hidden) return;
-    g.fillStyle = "#fffaf0"; g.fillRect(0, 0, c.width, c.height);
-    DIVERGING.forEach((col, i) => { g.fillStyle = `rgb(${col})`; g.fillRect(i / 256 * c.width, 0, c.width / 256 + 1, 18); });
-    g.fillStyle = "#1f1d18"; g.font = "12px Barlow, Arial, sans-serif"; g.textBaseline = "top";
-    g.textAlign = "left"; g.fillText(`−${SHAP_RANGE}`, 0, 22); g.textAlign = "right"; g.fillText(`+${SHAP_RANGE}`, c.width, 22);
-    g.textAlign = "center"; g.fillText("SHAP value (membership)", c.width / 2, 22);
-  }
-
   /* ---------- state changes ---------- */
+  const run = () => state.runs[state.current] || null;
+
   async function refresh() {
-    const key = [state.stage, state.stage === 2 ? state.attr : state.preset, state.stage === 4 ? state.shapView : ""].join(":");
-    if (state.stage === 1) { overlay = null; overlayKey = ""; }
-    else if (key !== overlayKey) { overlay = await buildOverlay(); overlayKey = key; }
-    if (state.stage === 4) { drawShapBar(); await drawShapPanels(); }
+    const r = run(), key = state.stage === 1 ? "" : state.stage === 2 ? `a:${state.attr}` : `s:${r ? r.id : "none"}`;
+    if (key !== overlayKey) { overlay = key && !key.endsWith("none") ? await buildOverlay() : null; overlayKey = key; }
+    drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); drawShapGlobal(); drawShapSample();
     draw();
   }
 
@@ -362,29 +300,135 @@
     refresh();
   }
 
-  function fillShapViews() {
-    const sel = $("#shapView"); sel.innerHTML = "";
-    const add = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.append(o); };
-    add("classes", "SOM classes");
-    for (const f of meta.presets[state.preset].features) add(f, `SHAP value of ${meta.attributes[f].label}`);
-    if (![...sel.options].some((o) => o.value === state.shapView)) state.shapView = "classes";
-    sel.value = state.shapView;
+  /* 2D color bar: bilinear blend of four corner colors across the neuron grid */
+  const CORNERS = [[44, 123, 182], [215, 25, 28], [255, 217, 47], [26, 152, 80]];   // top-left, top-right, bottom-left, bottom-right
+  function neuronColors(side) {
+    const out = [];
+    for (let r = 0; r < side; r++) for (let c = 0; c < side; c++) {
+      const u = side > 1 ? c / (side - 1) : 0.5, v = side > 1 ? r / (side - 1) : 0.5;
+      out.push([0, 1, 2].map((i) => Math.round((1 - u) * (1 - v) * CORNERS[0][i] + u * (1 - v) * CORNERS[1][i] + (1 - u) * v * CORNERS[2][i] + u * v * CORNERS[3][i])));
+    }
+    return out;
   }
 
-  function syncPresets() {
-    $$(".presets button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.preset === state.preset)));
-    drawLegend($("#classLegend")); drawLegend($("#classLegendVerdict")); fillShapViews();
+  function drawSomGrid(c, path) {
+    const g = c.getContext("2d"), w = c.width, pad = 10; g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, c.height);
+    const r = run();
+    if (!r) { g.fillStyle = "#5a5446"; g.font = "13px Barlow, Arial, sans-serif"; g.textAlign = "center"; g.fillText("No SOM trained yet", w / 2, c.height / 2); return; }
+    const cols = neuronColors(r.side), cell = (w - 2 * pad) / r.side, maxHit = Math.max(...r.hits);
+    for (let k = 0; k < r.side * r.side; k++) {
+      const x = pad + (k % r.side) * cell, y = pad + Math.floor(k / r.side) * cell;
+      g.fillStyle = `rgb(${cols[k]})`; g.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      if (!path) { const rad = Math.sqrt(r.hits[k] / maxHit) * cell * 0.35; g.fillStyle = "rgba(20,20,20,.55)"; g.beginPath(); g.arc(x + cell / 2, y + cell / 2, Math.max(rad, r.hits[k] > 0 ? 1.5 : 0), 0, Math.PI * 2); g.fill(); }
+    }
+    if (path) {
+      const P = (p) => [pad + (p[0] + 0.5) * cell, pad + (p[1] + 0.5) * cell];
+      let cur = path.base.slice();
+      g.lineWidth = 2.5; g.font = "600 11px Barlow, Arial, sans-serif"; g.textBaseline = "middle";
+      const order = path.phi.map((v, j) => [j, Math.hypot(v[0], v[1])]).sort((a, b) => b[1] - a[1]);
+      g.fillStyle = "#fff"; g.strokeStyle = "#000"; const [bx, by] = P(cur); g.beginPath(); g.arc(bx, by, 6, 0, Math.PI * 2); g.fill(); g.stroke();
+      for (const [j, mag] of order) {
+        const nxt = [cur[0] + path.phi[j][0], cur[1] + path.phi[j][1]], [x0, y0] = P(cur), [x1, y1] = P(nxt);
+        g.strokeStyle = "#000"; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+        const ang = Math.atan2(y1 - y0, x1 - x0); if (mag * cell > 6) { g.fillStyle = "#000"; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - 8 * Math.cos(ang - 0.4), y1 - 8 * Math.sin(ang - 0.4)); g.lineTo(x1 - 8 * Math.cos(ang + 0.4), y1 - 8 * Math.sin(ang + 0.4)); g.fill(); }
+        if (mag * cell > 14) { const lab = shortName(r.features[j]), tw = g.measureText(lab).width + 6, mx = (x0 + x1) / 2, my = (y0 + y1) / 2; g.fillStyle = "rgba(255,250,240,.9)"; g.fillRect(mx - tw / 2, my - 7, tw, 14); g.fillStyle = "#1f1d18"; g.textAlign = "center"; g.fillText(lab, mx, my); }
+        cur = nxt;
+      }
+      const [fx, fy] = P(path.final); g.fillStyle = "#ffd166"; g.strokeStyle = "#000"; g.beginPath(); g.arc(fx, fy, 7, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+  }
+
+  function drawRedundancy() {
+    const r = run(), el = $("#redundancy");
+    if (!r) { el.textContent = ""; return; }
+    const pairs = [];
+    r.features.forEach((a, i) => r.features.forEach((b, j) => { if (j > i && Math.abs(r.corr[i][j]) >= 0.8) pairs.push(`${meta.attributes[a].label} and ${meta.attributes[b].label} (r = ${Math.max(-1, Math.min(1, r.corr[i][j])).toFixed(2)})`); }));
+    el.innerHTML = pairs.length ? `<span class="warn">Correlation of 0.8 or more:</span> ${pairs.join("; ")}.` : "No pair of the chosen attributes correlates at 0.8 or more.";
+  }
+
+  function drawRunLog() {
+    const el = $("#runLog"); el.innerHTML = "";
+    if (!state.runs.length) { el.innerHTML = '<p class="small">No runs yet.</p>'; return; }
+    state.runs.forEach((r, i) => {
+      const b = document.createElement("button"); b.setAttribute("aria-pressed", String(i === state.current));
+      const top = r.importance ? r.features.map((f, j) => [f, r.importance[j]]).sort((a, c) => c[1] - a[1]).slice(0, 2).map(([f]) => shortName(f)).join(", ") : "SHAP running";
+      b.innerHTML = `Run ${i + 1}: ${r.features.length} attributes, ${r.side * r.side} neurons<small>${r.features.map(shortName).join(", ")}</small><small>Largest SHAP: ${top}</small>`;
+      b.addEventListener("click", () => { state.current = i; state.sample = null; state.explained = null; drawRunLog(); drawRedundancy(); refresh(); });
+      el.append(b);
+    });
+  }
+
+  function drawShapGlobal() {
+    const c = $("#shapGlobal"), r = run();
+    $("#shapRunLabel").textContent = r ? `Run ${state.current + 1}: ${r.features.length} attributes, ${r.side * r.side} neurons` : "Train a SOM in stage 3 first.";
+    if (!r || !r.importance) {
+      const g = c.getContext("2d"); g.fillStyle = "#fffaf0"; g.fillRect(0, 0, c.width, c.height);
+      g.fillStyle = "#5a5446"; g.font = "13px Barlow, Arial, sans-serif"; g.textAlign = "center"; g.fillText(r ? "Computing SHAP values…" : "", c.width / 2, c.height / 2); return;
+    }
+    const order = r.features.map((f, j) => [f, r.importance[j]]).sort((a, b) => b[1] - a[1]);
+    c.height = Math.max(90, 26 + 18 * order.length);
+    hbars(c, order.map(([f]) => shortName(f)), order.map(([, v]) => v), { min: 0, max: 0.3, zeroLine: false, colors: order.map(() => "#5a5446"), valueFmt: (v) => v.toFixed(3) });
+  }
+
+  function drawShapSample() {
+    const r = run(), e = state.explained, local = $("#shapLocal");
+    if (!r || !e || e.run !== r.id) {
+      $("#sampleTitle").textContent = "Click the section to explain a sample";
+      drawSomGrid($("#shapPath"));
+      const g = local.getContext("2d"); g.fillStyle = "#fffaf0"; g.fillRect(0, 0, local.width, local.height); return;
+    }
+    const k = r.bmu[e.index];
+    $("#sampleTitle").textContent = `${state.sample.km.toFixed(2)} km, ${state.sample.t.toFixed(2)} s: neuron row ${Math.floor(k / r.side) + 1}, column ${k % r.side + 1}`;
+    drawSomGrid($("#shapPath"), e);
+    const span = Math.max(r.side - 1, 1), order = e.phi.map((v, j) => [j, Math.hypot(v[0], v[1]) / span]).sort((a, b) => b[1] - a[1]);
+    local.height = Math.max(90, 26 + 18 * order.length);
+    hbars(local, order.map(([j]) => shortName(r.features[j])), order.map(([, v]) => v), { min: 0, max: 0.4, zeroLine: false, colors: order.map(() => "#be2d28"), valueFmt: (v) => v.toFixed(3), title: "Distance moved, fraction of map width" });
+  }
+
+  /* ---------- SOM builder ---------- */
+  let worker = null;
+  function requestExplain() {
+    const r = run(); if (!r || !state.sample || !worker || state.current !== state.runs.length - 1) { if (r && state.current !== state.runs.length - 1) $("#sampleTitle").textContent = "Samples can be explained for the most recent run"; return; }
+    const g = meta.grid, gi = Math.round((state.sample.km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.round((state.sample.t - meta.t_min) / meta.dt);
+    $("#sampleTitle").textContent = "Computing SHAP values for the sample…";
+    worker.postMessage({ type: "explain", index: gi * meta.nt + j });
+  }
+
+  function wireBuilder() {
+    const box = $("#attrChecks"), groups = {};
+    for (const [k, a] of Object.entries(meta.attributes)) (groups[a.family] ??= []).push([k, a]);
+    for (const [fam, list] of Object.entries(groups)) {
+      box.append(Object.assign(document.createElement("div"), { className: "fam", textContent: fam }));
+      for (const [k, a] of list) {
+        const l = document.createElement("label");
+        l.innerHTML = `<input type="checkbox" value="${k}"> ${a.label}`; box.append(l);
+      }
+    }
+    $("#runSom").addEventListener("click", async () => {
+      const feats = $$("#attrChecks input:checked").map((x) => x.value);
+      if (feats.length < 2) { $("#progress").hidden = false; $("#progressText").textContent = "Choose at least two attributes."; return; }
+      const side = +$("#neurons").value;
+      $("#runSom").disabled = true; state.busy = true; $("#progress").hidden = false; $("#progressText").textContent = "Loading attributes";
+      const attrs = [];
+      for (const f of feats) { const d = await loadBin(`attr_${f}.bin`, Uint8Array); attrs.push({ key: f, data: d.slice(), min: meta.attributes[f].min, max: meta.attributes[f].max }); }
+      worker?.terminate(); worker = new Worker("js/som-worker.js");
+      const rec = { id: Date.now(), features: feats, side, bmu: null, hits: null, corr: null, importance: null };
+      worker.onmessage = (e) => {
+        const m = e.data;
+        if (m.type === "progress") { $("#progressBar").style.width = `${Math.round(m.frac * 100)}%`; $("#progressText").textContent = m.stage; }
+        if (m.type === "map") {
+          Object.assign(rec, { bmu: m.bmu, hits: m.hits, corr: m.corr }); state.runs.push(rec); state.current = state.runs.length - 1;
+          state.sample = null; state.explained = null; $("#runSom").disabled = false; state.busy = false;
+          drawRunLog(); drawRedundancy(); refresh();
+        }
+        if (m.type === "importance") { rec.importance = m.importance; $("#progress").hidden = true; drawRunLog(); drawShapGlobal(); }
+        if (m.type === "explain") { state.explained = { run: rec.id, ...m }; drawShapSample(); }
+      };
+      worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.nt, side, seed: 7 }, attrs.map((a) => a.data.buffer));
+    });
   }
 
   function wire() {
-    for (const sel of ["#presetList", "#presetListShap", "#presetListVerdict"]) {
-      for (const [k, p] of Object.entries(meta.presets)) {
-        const b = document.createElement("button"); b.setAttribute("role", "radio"); b.dataset.preset = k;
-        b.innerHTML = `${p.label}<small>${p.features.map((f) => meta.attributes[f].label).join(", ")}</small>`;
-        b.addEventListener("click", () => { state.preset = k; syncPresets(); refresh(); });
-        $(sel).append(b);
-      }
-    }
     const aSel = $("#attrSelect"), groups = {};
     for (const [k, a] of Object.entries(meta.attributes)) (groups[a.family] ??= []).push([k, a]);
     for (const [fam, list] of Object.entries(groups)) {
@@ -393,7 +437,6 @@
       aSel.append(og);
     }
     aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); refresh(); });
-    $("#shapView").addEventListener("change", (e) => { state.shapView = e.target.value; refresh(); });
 
     $$(".tag").forEach((b) => b.addEventListener("click", () => setStage(+b.dataset.stage)));
     $$("[data-zoom]").forEach((b) => b.addEventListener("click", () => { state.zoom = b.dataset.zoom; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); draw(); }));
@@ -404,7 +447,7 @@
       state.hideControl = !state.hideControl; e.target.setAttribute("aria-pressed", String(state.hideControl));
       e.target.textContent = state.hideControl ? "Show well control" : "Hide all well control"; draw();
     });
-    for (const [id, key] of [["#attrOpacity", "attrOpacity"], ["#somOpacity", "somOpacity"], ["#shapOpacity", "shapOpacity"], ["#verdictOpacity", "verdictOpacity"]])
+    for (const [id, key] of [["#attrOpacity", "attrOpacity"], ["#somOpacity", "somOpacity"], ["#verdictOpacity", "verdictOpacity"]])
       $(id).addEventListener("input", (e) => { state[key] = +e.target.value; draw(); });
 
     const idle = "Move over the section to read position and values. Click to show a trace.";
@@ -413,9 +456,9 @@
       if (km < v.kmA || km > v.kmB || t < meta.t_min || t > meta.t_max) { $("#readout").textContent = idle; return; }
       const g = meta.grid, gi = Math.round((km - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1)), j = Math.round((t - meta.t_min) / meta.dt);
       let txt = `${km.toFixed(2)} km, ${t.toFixed(3)} s`;
-      const attr = cache[`attr_${state.attr}.bin`], som = cache[`som_${state.preset}.bin`];
+      const attr = cache[`attr_${state.attr}.bin`], rr = run();
       if (state.stage === 2 && attr && gi >= 0 && gi < g.nx) { const a = meta.attributes[state.attr]; txt += `, ${a.label} ${fmt(a.min + attr[gi * meta.nt + j] / 255 * (a.max - a.min))} ${a.unit}`; }
-      if (state.stage >= 3 && som && gi >= 0 && gi < g.nx) txt += `, class ${som[gi * meta.nt + j] + 1}`;
+      if (state.stage >= 3 && rr && gi >= 0 && gi < g.nx) { const k = rr.bmu[gi * meta.nt + j]; txt += `, neuron row ${Math.floor(k / rr.side) + 1}, column ${k % rr.side + 1}`; }
       $("#readout").textContent = txt;
     });
     cv.addEventListener("click", (e) => {
@@ -423,7 +466,7 @@
       if (km < v.kmA || km > v.kmB || t < meta.t_min || t > meta.t_max) return;
       if (state.stage === 1 && PICK_MODE) return pickAt(km, t, e.shiftKey);
       if (state.stage === 1) { state.traceKm = km; drawWiggle(); draw(); }
-      if (state.stage === 4) { state.sample = { km, t }; drawShapPanels().then(draw); }
+      if (state.stage === 4 && run()) { state.sample = { km, t }; requestExplain(); draw(); }
     });
 
     const gl = $("#glossary");
@@ -482,7 +525,7 @@
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
-    wire(); setupPickMode(); drawColorbar(); syncPresets(); drawWiggle(); resize();
+    wire(); wireBuilder(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
   }
   init();
 })();

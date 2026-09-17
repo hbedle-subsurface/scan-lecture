@@ -19,7 +19,7 @@
   <nav class="stages" aria-label="Stages">
     <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
     <button class="tag" data-stage="2"><span>2</span>Attributes</button>
-    <button class="tag" data-stage="3"><span>3</span>SOM facies</button>
+    <button class="tag" data-stage="3"><span>3</span>Build a SOM</button>
     <button class="tag" data-stage="4"><span>4</span>SHAP</button>
     <button class="tag" data-stage="5"><span>5</span>Verdict</button>
   </nav>
@@ -80,37 +80,46 @@
 
     <!-- Stage 3 -->
     <div class="card" data-for="3" hidden>
-      <h2>SOM facies</h2>
-      <div class="presets" id="presetList" role="radiogroup" aria-label="Attribute preset"></div>
-      <label class="field">Overlay opacity <input type="range" id="somOpacity" min="0" max="1" step="0.05" value="0.7"></label>
-      <p class="small">Class, share of samples, and mean value of each attribute in <button class="term" data-term="zscore">standard deviations</button>. Color scale fixed at ±2.</p>
-      <div id="classLegend" class="legend"></div>
-      <label><input type="checkbox" class="syncHorizons" checked> Horizons</label>
+      <h2>Build a SOM</h2>
+      <h3>Attributes</h3>
+      <div id="attrChecks" class="checks"></div>
+      <label class="field">Neurons
+        <select id="neurons">
+          <option value="2">4 (2 × 2)</option><option value="3">9 (3 × 3)</option><option value="4">16 (4 × 4)</option>
+          <option value="5">25 (5 × 5)</option><option value="6" selected>36 (6 × 6)</option><option value="8">64 (8 × 8)</option><option value="10">100 (10 × 10)</option>
+        </select>
+      </label>
+      <button class="big run" id="runSom">Train the SOM</button>
+      <div class="progress" id="progress" hidden><div class="bar"><span id="progressBar"></span></div><p class="small" id="progressText"></p></div>
+      <label class="field">Overlay opacity <input type="range" id="somOpacity" min="0" max="1" step="0.05" value="0.75"></label>
+      <h3>The trained map</h3>
+      <canvas id="somGrid" width="268" height="268" aria-label="SOM neuron grid with 2D colors"></canvas>
+      <p class="small">Each square is a neuron, colored by its position on the map. Dot size shows the share of samples assigned to it. Neighboring neurons hold similar attribute combinations.</p>
+      <h3>Attributes that repeat each other</h3>
+      <div id="redundancy" class="small"></div>
+      <h3>Runs</h3>
+      <div id="runLog" class="runlog"><p class="small">No runs yet.</p></div>
     </div>
 
     <!-- Stage 4 -->
     <div class="card" data-for="4" hidden>
       <h2>SHAP</h2>
-      <div class="presets" id="presetListShap" role="radiogroup" aria-label="Attribute preset"></div>
-      <label class="field">Map
-        <select id="shapView"></select>
-      </label>
-      <label class="field">Overlay opacity <input type="range" id="shapOpacity" min="0" max="1" step="0.05" value="0.7"></label>
-      <canvas id="shapBar" width="260" height="40" aria-label="SHAP color scale" hidden></canvas>
+      <p class="small" id="shapRunLabel">Train a SOM in stage 3 first.</p>
+      <h3>How far each attribute moves samples across the map</h3>
+      <canvas id="shapGlobal" width="268" height="200" aria-label="Mean SHAP magnitude by attribute"></canvas>
+      <p class="small">Mean <button class="term" data-term="shap">SHAP</button> magnitude over 400 random samples, as a fraction of the map width. Axis fixed at 0–0.3.</p>
       <h3 id="sampleTitle">Click the section to explain a sample</h3>
-      <canvas id="shapLocal" width="268" height="210" aria-label="SHAP values for the selected sample"></canvas>
-      <h3>Mean |SHAP| by attribute</h3>
-      <canvas id="shapGlobal" width="268" height="170" aria-label="Mean absolute SHAP values"></canvas>
-      <p class="small"><button class="term" data-term="shap">SHAP values</button> here explain the sample's membership in the class the <button class="term" data-term="som">SOM</button> assigned. Axes fixed.</p>
+      <canvas id="shapPath" width="268" height="268" aria-label="Path of a sample across the SOM grid"></canvas>
+      <canvas id="shapLocal" width="268" height="200" aria-label="SHAP values for the clicked sample"></canvas>
+      <p class="small">The path starts at the average position of all samples and adds each attribute's SHAP value in turn, largest first, ending at the sample's position on the map.</p>
     </div>
 
     <!-- Stage 5 -->
     <div class="card" data-for="5" hidden>
       <h2>Verdict</h2>
-      <p>The SOM classes with the well control returned.</p>
-      <div class="presets" id="presetListVerdict" role="radiogroup" aria-label="Attribute preset"></div>
+      <p>The current SOM with the well control returned.</p>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.55"></label>
-      <div id="classLegendVerdict" class="legend"></div>
+      <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid"></canvas>
     </div>
   </aside>
 </main>

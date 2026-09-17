@@ -74,3 +74,17 @@ button,select,input{font:inherit}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .pick{border-top:1px dashed var(--ink-soft);margin-top:12px;padding-top:4px}
 #shapLocal,#shapGlobal,#shapBar{display:block;width:100%;height:auto;background:#fffaf0}
+
+.checks{display:grid;gap:2px;margin-bottom:6px}
+.checks .fam{font-weight:600;font-size:.8rem;color:var(--ink-soft);margin-top:6px;text-transform:uppercase;letter-spacing:.04em}
+.checks label{font-size:.95rem}
+.run{background:var(--thread);border-color:var(--thread);color:#fff;margin-top:6px}
+.run:disabled{opacity:.5;cursor:wait}
+.progress .bar{height:8px;background:#e0d4b0;border-radius:4px;overflow:hidden;margin-top:8px}
+.progress .bar span{display:block;height:100%;width:0;background:var(--thread)}
+#somGrid,#somGridVerdict,#shapPath{display:block;width:100%;height:auto;background:#fffaf0}
+.runlog{display:grid;gap:4px}
+.runlog button{text-align:left;padding:6px 8px;border:1px solid var(--ink-soft);background:transparent;color:var(--ink);border-radius:3px;cursor:pointer;font-size:.85rem}
+.runlog button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.runlog small{display:block;opacity:.8}
+.warn{color:#9d0208}

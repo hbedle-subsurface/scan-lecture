@@ -8,9 +8,9 @@ The page loads precomputed data only, so it runs on GitHub Pages or any static w
 
 1. **Line and well.** The PreSTM full stack from 15 to 40 km along SCAN029, the CAL-GT-04 well path projected onto the line, formation tops, six horizons tracked from the well tie, and formation shading. Well control can be hidden to view the section as if no well existed. Clicking the section shows the trace at that location.
 2. **Attributes.** Eleven attributes overlaid on the seismic with fixed color scales.
-3. **SOM facies.** Class maps from self-organizing maps trained on four attribute presets, with the mean attribute values of each class.
-4. **SHAP.** Maps of the SHAP value of each attribute across the section, a breakdown for any clicked sample (base value plus each attribute's contribution equals the class membership), and mean absolute SHAP values for the clicked sample's class.
-5. **Verdict.** SOM classes shown with the well control returned.
+3. **Build a SOM.** Any combination of attributes and a SOM of 4 to 100 neurons, trained in the browser. The section is colored by each sample's neuron on a 2D color bar, the neuron grid shows how many samples each neuron holds, pairs of chosen attributes that correlate at 0.8 or more are listed, and every run is kept so runs can be compared.
+4. **SHAP.** For the current run, how far each attribute moves samples across the map on average, and, for a clicked sample, the path from the average position to the sample's neuron built from each attribute's SHAP value.
+5. **Verdict.** The current SOM with the well control returned.
 
 ## Running locally
 
@@ -47,9 +47,7 @@ python build_data.py
 | 2 | `step2_well.py` | Well path and tops in two-way time |
 | 3 | `step3_horizons.py` | Six horizons, 30–39 km |
 | 4 | `step4_attributes.py` | Attributes on a 20 m grid, including the AASPI attributes |
-| 5 | `step5_som.py` | SOM classes for four presets |
-| 7 | `step7_shap.py` | SHAP values for each preset |
-| 6 | `step6_export.py` | `data/meta.json` and binary arrays (run last) |
+| 6 | `step6_export.py` | `data/meta.json` and binary arrays |
 
 Well inputs are in `python/inputs/`: formation tops from NLOG, and deviation survey stations (a subset of the NLOG survey stations; the full survey can replace the file in the same column format).
 
@@ -67,9 +65,9 @@ Interpreted horizons replace the automatic ones. Opening the page with `?pick` a
 
 Attributes other than relative acoustic impedance and AVT are averaged over a 140 m by 62 ms window so they describe seismic facies character rather than individual reflections. Relative acoustic impedance and AVT are zero-mean band-limited traces, so they are averaged over the same 140 m laterally but only 10 ms vertically. Geometric attributes on a 2D line measure apparent dip along the line only. Instantaneous frequency and the spectral ratio decrease with travel time as higher frequencies are attenuated, so part of their variation follows depth. In the Carboniferous section the near and far stacks correlate at about 0.2, so the far minus near attribute contains a large noise component there.
 
-**SOM.** Attributes are converted to z-scores over the 15–40 km, 0.15–1.70 s window. A 10 × 10 SOM is trained on 60,000 random samples, its prototype vectors are grouped into 8 classes with k-means, and classes are numbered by increasing mean two-way time.
+**SOM.** The SOM (Kohonen, 1982) runs in a Web Worker (`js/som-worker.js`). The chosen attributes are converted to z-scores over the 15–40 km, 0.15–1.70 s window. Prototypes start on the plane of the first two principal components, which keeps the map orientation similar between runs, and are trained on 20,000 random samples with a Gaussian neighborhood that shrinks from half the map width to 0.5 neurons. A fixed random seed makes the same settings give the same map. Every sample is then assigned to its closest prototype. Neuron colors come from a 2D color bar, so neighboring neurons, which hold similar attribute combinations, have similar colors.
 
-**SHAP.** SHAP values (Lundberg and Lee, 2017) explain a soft class membership derived from the SOM: for each sample, exp(−squared distance) to every prototype, summed over the prototypes in each class and normalized. Shapley values are computed exactly over all 2^M attribute combinations, with attributes outside a combination replaced by 16 k-means background samples (interventional SHAP), on a grid of every 80 m and 10 ms. Stored values explain the membership of the class the SOM assigned, and the base value plus the SHAP values reproduces that membership to within 10^-4. Correlated attributes share credit, so an attribute with a small SHAP value can still carry information that a correlated attribute already supplies.
+**SHAP.** The explained output is a sample's position on the SOM grid, which sets its color: the average grid position of all neurons, weighted by exp(−squared distance / τ), where τ is the median squared distance from a sample to its closest neuron. SHAP values (Lundberg and Lee, 2017) are estimated by sampling random attribute orderings, each with a randomly chosen training sample as the background (Štrumbelj and Kononenko, 2014): 8 orderings per sample for the 400 samples in the global importance, and 400 orderings for a clicked sample. The average position plus the SHAP values gives the sample's position. Attributes that correlate share credit, so each of several near-duplicate attributes can show a small SHAP value while together they have a large effect.
 
 ## Data sources
 
@@ -85,6 +83,7 @@ Attributes other than relative acoustic impedance and AVT are averaged over a 14
 - Hart, B. S., 2008, Channel detection in 3-D seismic data using sweetness: AAPG Bulletin, 92, 733–742.
 - Kohonen, T., 1982, Self-organized formation of topologically correct feature maps: Biological Cybernetics, 43, 59–69.
 - Lundberg, S. M., and S.-I. Lee, 2017, A unified approach to interpreting model predictions: Advances in Neural Information Processing Systems, 30, 4765–4774.
+- Štrumbelj, E., and I. Kononenko, 2014, Explaining prediction models and individual predictions with feature contributions: Knowledge and Information Systems, 41, 647–665.
 - Marfurt, K. J., R. L. Kirlin, S. L. Farmer, and M. S. Bahorich, 1998, 3-D seismic attributes using a semblance-based coherency algorithm: Geophysics, 63, 1150–1165.
 - Partyka, G., J. Gridley, and J. Lopez, 1999, Interpretational applications of spectral decomposition in reservoir characterization: The Leading Edge, 18, 353–360.
 - Radovich, B. J., and R. B. Oliveros, 1998, 3-D sequence interpretation of seismic instantaneous attributes from the Gorgon field: The Leading Edge, 17, 1286–1293.
