@@ -2,7 +2,8 @@
 (() => {
   "use strict";
 
-  const ZOOMS = { full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0], custom: [0.0, 48.5] };
+  const ZOOMS = { study: [0.0, 40.0], full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0], custom: [0.0, 48.5] };
+  const STUDY_T = [0.15, 2.0];   // the wells and both target intervals lie inside this window
   const MARGIN = { l: 58, r: 66, t: 70, b: 42 };   // top margin holds the labels, above the seismic
   const KEY_TOPS = new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
     "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]);
@@ -22,9 +23,9 @@
   };
 
   const state = {
-    stage: 1, zoom: "full", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
+    stage: 1, zoom: "study", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, zoomT: null, drag: null, compare: false, runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -91,7 +92,7 @@
   /* ---------- geometry ---------- */
   const cv = $("#section"), cx = cv.getContext("2d");
   let W = 0, H = 0;
-  const view = () => { const [a, b] = ZOOMS[state.zoom], t = state.zoom === "custom" && state.zoomT ? state.zoomT : [meta.t_min, meta.t_max]; return { kmA: a, kmB: b, tA: t[0], tB: t[1] }; };
+  const view = () => { const [a, b] = ZOOMS[state.zoom], t = state.zoom === "custom" && state.zoomT ? state.zoomT : state.zoom === "study" ? STUDY_T : [meta.t_min, meta.t_max]; return { kmA: a, kmB: b, tA: t[0], tB: t[1] }; };
   const X = (km) => { const v = view(); return MARGIN.l + (km - v.kmA) / (v.kmB - v.kmA) * (W - MARGIN.l - MARGIN.r); };
   const Y = (t) => { const v = view(); return MARGIN.t + (t - v.tA) / (v.tB - v.tA) * (H - MARGIN.t - MARGIN.b); };
   const invX = (px) => { const v = view(); return v.kmA + (px - MARGIN.l) / (W - MARGIN.l - MARGIN.r) * (v.kmB - v.kmA); };
@@ -176,13 +177,12 @@
     drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
     const s = state.stage, control = !(s === 1 && state.hideControl);
     if (((s === 1 && state.showUnits) || (s === 2 && state.showGeoColumns)) && control) drawWellColumns();
-    const alpha = { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.verdictOpacity }[s];
+    const alpha = { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.somOpacity, 7: state.verdictOpacity }[s];
     if (s >= 4 && state.compare && state.runs[state.runA] && state.runs[state.runB]) drawCompare(alpha);
     else if (overlay && s > 2) drawRaster(overlay, alpha);
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && state.showWell) drawWell();
     drawSomerenLimits();
-    if (s === 1) drawTraceMarker();
     if (s === 1 && PICK_MODE) drawPicks();
     if (s === 5 && state.sample) drawSampleMarker();
     if (s === 2) drawGeologyOverlay();
@@ -362,32 +362,12 @@
           cx.fillStyle = st.color; cx.textAlign = "left"; cx.fillText(lab, x0 + 4, y);
         }
       }
-      // karst zones and the fault zone recorded on the mud log
-      for (const ev of wl.events || []) {
-        if (ev.kind === "fault" && state.showFault) {
-          const seg = p.filter((q) => q.md >= ev.md_top && q.md <= ev.md_base);
-          cx.strokeStyle = "#e63946"; cx.lineWidth = 7; cx.globalAlpha = 0.85; cx.beginPath();
-          [{ km: ev.km_top, twt: ev.twt_top }, ...seg, { km: ev.km_base, twt: ev.twt_base }].forEach((q, i) => (i ? cx.lineTo : cx.moveTo).call(cx, X(q.km), Y(q.twt)));
-          cx.stroke(); cx.globalAlpha = 1;
-
-        } else if (ev.kind === "karst" && state.showKarst) {
-          const xk = X(ev.km_top), yk = Y(ev.twt_top); cx.fillStyle = "#4cc9f0"; cx.strokeStyle = "#000"; cx.lineWidth = 1;
-          cx.beginPath(); cx.moveTo(xk + 7, yk); cx.lineTo(xk, yk - 5); cx.lineTo(xk - 7, yk); cx.lineTo(xk, yk + 5); cx.closePath(); cx.fill(); cx.stroke();
-        }
-      }
       const off = p.map((q) => q.offset_m);
       const dist = Math.max(...off) - Math.min(...off) < 50 ? `${(off[0] / 1000).toFixed(1)} km` : `${(Math.min(...off) / 1000).toFixed(1)}–${(Math.max(...off) / 1000).toFixed(1)} km`;
       const label = `${wl.name}${wl.year ? ` (drilled ${wl.year})` : ""}, ${dist} from the line${wl.estimated_path ? ", path estimated" : ""}`;
       topLabel(X(p[0].km), label, st.color);
     }
     cx.restore();
-  }
-
-  function drawTraceMarker() {
-    const x = X(state.traceKm); if (x < MARGIN.l || x > W - MARGIN.r) return;
-    cx.save(); cx.strokeStyle = "rgba(200,54,45,.9)"; cx.lineWidth = 1.5; cx.setLineDash([3, 3]);
-    cx.beginPath(); cx.moveTo(x, MARGIN.t); cx.lineTo(x, H - MARGIN.b); cx.stroke();
-    cx.restore(); topLabel(x, "Trace shown at right", "#c8362d", "#fff");
   }
 
   function drawSampleMarker() {
@@ -426,24 +406,6 @@
   }
 
   /* ---------- side panels ---------- */
-  function drawWiggle() {
-    const c = $("#wiggle"), g = c.getContext("2d"), w = c.width, h = c.height, pad = { l: 34, r: 8, t: 8, b: 8 }, nx = meta.section.nx, nt = meta.nt;
-    g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, h);
-    const i = Math.round((state.traceKm - meta.km_min) / (meta.km_max - meta.km_min) * (nx - 1));
-    const x0 = pad.l + (w - pad.l - pad.r) / 2, scale = (w - pad.l - pad.r) / 2 / 127 * 0.55, y = (j) => pad.t + j / (nt - 1) * (h - pad.t - pad.b);
-    g.strokeStyle = "#9a8f73"; g.beginPath(); g.moveTo(x0, pad.t); g.lineTo(x0, h - pad.b); g.stroke();
-    g.beginPath(); g.moveTo(x0, y(0));
-    for (let j = 0; j < nt; j++) g.lineTo(x0 + section[i * nt + j] * scale, y(j));
-    for (let j = nt - 1; j >= 0; j--) g.lineTo(x0, y(j));
-    g.save(); g.clip(); g.fillStyle = "#1f1d18"; g.fillRect(pad.l, 0, x0 - pad.l, h); g.restore();
-    g.strokeStyle = "#1f1d18"; g.lineWidth = 1; g.beginPath();
-    for (let j = 0; j < nt; j++) (j ? g.lineTo : g.moveTo).call(g, x0 + section[i * nt + j] * scale, y(j));
-    g.stroke();
-    g.fillStyle = "#5a5446"; g.font = "11px Barlow, Arial, sans-serif"; g.textAlign = "right"; g.textBaseline = "middle";
-    for (let t = 0.2; t <= meta.t_max + 1e-9; t += 0.2) g.fillText(t.toFixed(1), pad.l - 6, y((t - meta.t_min) / meta.dt));
-    $("#traceKm").textContent = state.traceKm.toFixed(2);
-  }
-
   function drawColorbar() {
     const a = meta.attributes[state.attr], c = $("#colorbar"), g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height);
     (state.attrLut === "default" ? a.lut : meta.luts[state.attrLut].lut).forEach((col, i) => { g.fillStyle = `rgb(${col})`; g.fillRect(i / 256 * c.width, 0, c.width / 256 + 1, 20); });
@@ -478,15 +440,17 @@
   async function refresh() {
     const r = run(), key = state.stage <= 2 ? "" : state.stage === 3 ? `a:${state.attr}:${state.attrLut}` : `s:${r ? r.id + ":" + [...(r.hidden || [])].sort((a, b) => a - b).join(".") : "none"}`;
     if (key !== overlayKey) { overlay = key && !key.endsWith("none") ? await buildOverlay() : null; overlayKey = key; }
-    drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); updateNeuronInfo(); drawShapGlobal(); drawShapSample();
+    drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); updateNeuronInfo();
+    for (const [id, idx] of [["#somGridA", state.runA], ["#somGridB", state.runB]]) { const c = $(id); if (c && state.runs[idx]) drawGridFor(c, state.runs[idx]); } drawShapGlobal(); drawShapSample();
     draw();
   }
 
   function setZoom(z) { state.zoom = z; if (z !== "custom") state.zoomT = null; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
   function setStage(n) {
     state.stage = n;
-    if (n === 6) setZoom("someren");
-    if (n === 2) setZoom("full");
+    if (n === 4 || n === 6) syncPicks();
+    if (n === 7) setZoom("someren");
+    if (n === 2) setZoom("study");
     $$(".tag").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.stage === n)));
     $$(".card").forEach((c) => (c.hidden = +c.dataset.for !== n));
     refresh();
@@ -502,6 +466,8 @@
     }
     return out;
   }
+
+  function drawGridFor(c, r) { const keep = state.current; state.current = state.runs.indexOf(r); drawSomGrid(c); state.current = keep; }
 
   function drawSomGrid(c, path) {
     const g = c.getContext("2d"), w = c.width, pad = 10; g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, c.height);
@@ -548,18 +514,8 @@
     $("#comparePanel").hidden = state.runs.length < 2;
   }
 
-  function somPickList() {
-    const picked = $$("#attrChecks input:checked").map((x) => x.value);
-    $("#somPicks").textContent = picked.length ? picked.map((f) => meta.attributes[f].label).join(", ") : "none yet";
-    const box = $("#attrForSom"); if (box) box.checked = picked.includes(state.attr);
-  }
-
   function wireSomPicks() {
-    $("#attrForSom").addEventListener("change", (e) => {
-      const input = $(`#attrChecks input[value="${state.attr}"]`); input.checked = e.target.checked; somPickList();
-    });
-    $$("#attrChecks input").forEach((i) => i.addEventListener("change", somPickList));
-    somPickList();
+    $("#attrForSom").addEventListener("change", (e) => { e.target.checked ? state.picked.add(state.attr) : state.picked.delete(state.attr); syncPicks(); });
   }
 
   function wireCompare() {
@@ -666,57 +622,80 @@
       b.addEventListener("click", () => { state.hiddenWells.has(w.name) ? state.hiddenWells.delete(w.name) : state.hiddenWells.add(w.name); b.setAttribute("aria-pressed", String(!state.hiddenWells.has(w.name))); draw(); });
       box.append(b);
     }
-    for (const [key, text, color] of [["showKarst", "Karst zones ◆", "#4cc9f0"]]) {
-      const c = document.createElement("button"); c.textContent = text; c.setAttribute("aria-pressed", "true"); c.style.setProperty("--chip", color);
-      c.addEventListener("click", () => { state[key] = !state[key]; c.setAttribute("aria-pressed", String(state[key])); draw(); });
-      box.append(c);
-    }
     const n = document.createElement("button"); n.textContent = "Formation names"; n.setAttribute("aria-pressed", "true");
     n.addEventListener("click", () => { state.showNames = !state.showNames; n.setAttribute("aria-pressed", String(state.showNames)); draw(); });
     box.append(n);
   }
 
-  function wireBuilder() {
-    const box = $("#attrChecks"), groups = {};
+  function attrLists() { return $$(".attr-picks"); }
+  function syncPicks() {
+    for (const box of attrLists()) box.querySelectorAll("input").forEach((i) => (i.checked = state.picked.has(i.value)));
+    const labels = [...state.picked].map((f) => meta.attributes[f].label);
+    for (const id of ["#somPicks", "#somPicks2", "#somPicks2b"]) { const el = $(id); if (el) el.textContent = labels.length ? labels.join(", ") : "none yet"; }
+    const box = $("#attrForSom"); if (box) box.checked = state.picked.has(state.attr);
+    for (const id of ["#pickCount", "#pickCount2"]) { const el = $(id); if (el) el.textContent = `${state.picked.size} chosen`; }
+  }
+
+  function buildAttrList(box) {
+    const groups = {};
     for (const [k, a] of Object.entries(meta.attributes)) (groups[a.family] ??= []).push([k, a]);
     for (const [fam, list] of Object.entries(groups)) {
       box.append(Object.assign(document.createElement("div"), { className: "fam", textContent: fam }));
       for (const [k, a] of list) {
         const l = document.createElement("label");
-        l.innerHTML = `<input type="checkbox" value="${k}"> ${a.label}`; box.append(l);
+        l.innerHTML = `<input type="checkbox" value="${k}"> ${a.label}`;
+        l.querySelector("input").addEventListener("change", (e) => { e.target.checked ? state.picked.add(k) : state.picked.delete(k); syncPicks(); });
+        box.append(l);
       }
     }
-    $("#runSom").addEventListener("click", async () => {
-      const feats = $$("#attrChecks input:checked").map((x) => x.value);
-      if (feats.length < 2) { $("#progress").hidden = false; $("#progressText").textContent = "Choose at least two attributes."; return; }
-      const side = +$("#neurons").value, g = meta.grid;
-      const kmRange = { full: [meta.km_min, meta.km_max], someren: ZOOMS.someren, well: ZOOMS.well, view: [view().kmA, view().kmB] }[$("#somArea").value];
-      if ($("#somArea").value === "view") { $("#somTop").value = view().tA.toFixed(2); $("#somBase").value = view().tB.toFixed(2); }
-      let tTop = +$("#somTop").value, tBase = +$("#somBase").value; if (tBase <= tTop + 0.1) tBase = tTop + 0.1;
-      const toI = (k) => Math.max(0, Math.min(g.nx - 1, Math.round((k - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1))));
-      const toJ = (t) => Math.max(0, Math.min(g.nt - 1, Math.round((t - meta.t_min) / g.dt)));
-      const win = { i0: toI(kmRange[0]), i1: toI(kmRange[1]), j0: toJ(tTop), j1: toJ(tBase) };
-      $("#runSom").disabled = true; state.busy = true; $("#progress").hidden = false; $("#progressText").textContent = "Loading attributes";
-      const attrs = [];
-      for (const f of feats) { const d = await loadBin(`attr_${f}.bin`, Uint8Array); attrs.push({ key: f, data: d.slice(), min: meta.attributes[f].min, max: meta.attributes[f].max }); }
-      worker?.terminate(); worker = new Worker("js/som-worker.js");
-      const rec = { id: Date.now(), features: feats, side, bmu: null, hits: null, corr: null, importance: null,
-        window: { km: [Math.max(kmRange[0], meta.km_min), Math.min(kmRange[1], meta.km_max)], t: [tTop, tBase], win } };
-      worker.onmessage = (e) => {
-        const m = e.data;
-        if (m.type === "progress") { $("#progressBar").style.width = `${Math.round(m.frac * 100)}%`; $("#progressText").textContent = m.stage; }
-        if (m.type === "map") {
-          Object.assign(rec, { bmu: m.bmu, hits: m.hits, corr: m.corr }); state.runs.push(rec); state.current = state.runs.length - 1;
-          state.sample = null; state.explained = null; $("#runSom").disabled = false; state.busy = false;
-          drawRunLog(); drawRedundancy(); fillRunSelects();
-          if (state.runs.length >= 2) { state.runB = state.runs.length - 1; state.runA = state.runs.length - 2; fillRunSelects(); }
-          refresh();
-        }
-        if (m.type === "importance") { rec.importance = m.importance; $("#progress").hidden = true; drawRunLog(); drawShapGlobal(); }
-        if (m.type === "explain") { state.explained = { run: rec.id, ...m }; drawShapSample(); }
-      };
-      worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.grid.nt, side, seed: 7, win }, attrs.map((a) => a.data.buffer));
-    });
+  }
+
+  async function startRun(button) {
+    const feats = [...state.picked];
+    const prog = button.closest(".card").querySelector(".progress") || $("#progress");
+    const bar = prog.querySelector(".bar span"), text = prog.querySelector("p");
+    if (feats.length < 2) { prog.hidden = false; text.textContent = "Choose at least two attributes."; return; }
+    const side = state.neurons, g = meta.grid;
+    const kmRange = { study: [ZOOMS.study[0], ZOOMS.study[1]], full: [meta.km_min, meta.km_max], someren: ZOOMS.someren, well: ZOOMS.well, view: [view().kmA, view().kmB] }[state.somArea];
+    if (state.somArea === "view") { state.somT = [view().tA, view().tB]; $("#somTop").value = view().tA.toFixed(2); $("#somBase").value = view().tB.toFixed(2); }
+    let [tTop, tBase] = state.somT; if (tBase <= tTop + 0.1) tBase = tTop + 0.1;
+    const toI = (k) => Math.max(0, Math.min(g.nx - 1, Math.round((k - g.km_min) / (g.km_max - g.km_min) * (g.nx - 1))));
+    const toJ = (t) => Math.max(0, Math.min(g.nt - 1, Math.round((t - meta.t_min) / g.dt)));
+    const win = { i0: toI(kmRange[0]), i1: toI(kmRange[1]), j0: toJ(tTop), j1: toJ(tBase) };
+    $$(".run").forEach((b) => (b.disabled = true)); state.busy = true; prog.hidden = false; text.textContent = "Loading attributes";
+    const attrs = [];
+    for (const f of feats) { const d = await loadBin(`attr_${f}.bin`, Uint8Array); attrs.push({ key: f, data: d.slice(), min: meta.attributes[f].min, max: meta.attributes[f].max }); }
+    worker?.terminate(); worker = new Worker("js/som-worker.js");
+    const rec = { id: Date.now(), features: feats, side, bmu: null, hits: null, corr: null, importance: null,
+      window: { km: [Math.max(kmRange[0], meta.km_min), Math.min(kmRange[1], meta.km_max)], t: [tTop, tBase], win } };
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === "progress") { bar.style.width = `${Math.round(m.frac * 100)}%`; text.textContent = m.stage; }
+      if (m.type === "map") {
+        Object.assign(rec, { bmu: m.bmu, hits: m.hits, corr: m.corr }); state.runs.push(rec); state.current = state.runs.length - 1;
+        state.sample = null; state.explained = null; $$(".run").forEach((b) => (b.disabled = false)); state.busy = false;
+        drawRunLog(); drawRedundancy();
+        if (state.runs.length >= 2) { state.runB = state.runs.length - 1; state.runA = state.runs.length - 2; }
+        fillRunSelects(); refresh();
+      }
+      if (m.type === "importance") { rec.importance = m.importance; prog.hidden = true; drawRunLog(); drawShapGlobal(); }
+      if (m.type === "explain") { state.explained = { run: rec.id, ...m }; drawShapSample(); }
+    };
+    worker.postMessage({ type: "run", attrs, nx: meta.grid.nx, nt: meta.grid.nt, side, seed: 7, win }, attrs.map((a) => a.data.buffer));
+  }
+
+  function windowText() {
+    const k = { study: ZOOMS.study, full: [meta.km_min, meta.km_max], someren: ZOOMS.someren, well: ZOOMS.well, view: [view().kmA, view().kmB] }[state.somArea];
+    return `${k[0].toFixed(1)}–${k[1].toFixed(1)} km, ${state.somT[0].toFixed(2)}–${state.somT[1].toFixed(2)} s`;
+  }
+
+  function wireBuilder() {
+    attrLists().forEach(buildAttrList);
+    $$(".neurons").forEach((sel) => { sel.value = state.neurons; sel.addEventListener("change", (e) => { state.neurons = +e.target.value; $$(".neurons").forEach((x) => (x.value = state.neurons)); }); });
+    $("#somArea").addEventListener("change", (e) => { state.somArea = e.target.value; $("#windowText").textContent = windowText(); });
+    for (const [id, i] of [["#somTop", 0], ["#somBase", 1]]) $(id).addEventListener("change", (e) => { state.somT[i] = +e.target.value; $("#windowText").textContent = windowText(); });
+    $$(".run").forEach((b) => b.addEventListener("click", () => startRun(b)));
+    syncPicks(); $("#windowText").textContent = windowText();
   }
 
   function wire() {
@@ -727,7 +706,7 @@
       for (const [k, a] of list) og.append(Object.assign(document.createElement("option"), { value: k, textContent: a.label }));
       aSel.append(og);
     }
-    aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); somPickList(); refresh(); });
+    aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); syncPicks(); refresh(); });
     const lSel = $("#attrLut");
     lSel.append(Object.assign(document.createElement("option"), { value: "default", textContent: "Default for this attribute" }));
     for (const [k, v] of Object.entries(meta.luts)) lSel.append(Object.assign(document.createElement("option"), { value: k, textContent: v.label }));
@@ -745,8 +724,8 @@
       state.hideControl = !state.hideControl; e.target.setAttribute("aria-pressed", String(state.hideControl));
       e.target.textContent = state.hideControl ? "Show well control" : "Hide all well control"; draw();
     });
-    for (const [id, key] of [["#attrOpacity", "attrOpacity"], ["#somOpacity", "somOpacity"], ["#verdictOpacity", "verdictOpacity"]])
-      $(id).addEventListener("input", (e) => { state[key] = +e.target.value; draw(); });
+    for (const [id, key] of [["#attrOpacity", "attrOpacity"], ["#somOpacity", "somOpacity"], ["#somOpacity2", "somOpacity"], ["#verdictOpacity", "verdictOpacity"]])
+      $(id).addEventListener("input", (e) => { state[key] = +e.target.value; $$("#somOpacity, #somOpacity2").forEach((x) => (x.value = state.somOpacity)); draw(); });
 
     const idle = "Drag a box on the section to zoom. Move over it to read values.";
     cv.addEventListener("mousemove", (e) => {
@@ -781,7 +760,6 @@
       const [x, y] = pos(e), km = invX(x), t = invY(y), v = view();
       if (km < v.kmA || km > v.kmB || t < v.tA || t > v.tB) return;
       if (state.stage === 1 && PICK_MODE) return pickAt(km, t, e.shiftKey);
-      if (state.stage === 1) { state.traceKm = km; drawWiggle(); draw(); }
       if (state.stage === 5 && run()) { state.sample = { km, t }; requestExplain(); draw(); }
     });
 
@@ -841,7 +819,7 @@
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
-    wire(); wireWellChips(); wireGeology(); wireBuilder(); wireNeuronToggles(); wireCompare(); wireSomPicks(); setupPickMode(); drawColorbar(); drawWiggle(); resize(); refresh();
+    wire(); wireWellChips(); wireGeology(); wireBuilder(); wireNeuronToggles(); wireCompare(); wireSomPicks(); setupPickMode(); drawColorbar(); resize(); refresh();
   }
   init();
 })();
