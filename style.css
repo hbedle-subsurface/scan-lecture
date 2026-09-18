@@ -125,3 +125,5 @@ button,select,input{font:inherit}
 
 .keep{background:#fff3d0;border:2px solid var(--thread);border-radius:3px;padding:6px 8px;margin:6px 0;font-weight:600}
 .count{margin-left:auto;font-weight:400;font-size:.85rem;color:var(--ink-soft)}
+
+.modes{border:0;padding:0;margin:6px 0;display:grid;gap:3px}

@@ -58,6 +58,7 @@
         <label><input type="checkbox" id="showHorizons" checked> Formation picks</label>
         <label><input type="checkbox" id="showUnits"> Formation group shading</label>
       </fieldset>
+      <p class="small">An asterisk (*) marks a formation named as a candidate geothermal reservoir: the intervals tested in ASTEN-GT-02 at Someren, and the Zeeland Formation at Californië.</p>
       <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
       <div class="pick" id="pickPanel" hidden>
         <h3>Pick horizons</h3>
@@ -80,6 +81,7 @@
         <button data-geo="33.3,35.3,1.10,1.60" aria-pressed="false"><b>Dinantian</b><small>Carbonate platform; karst and fracture permeability produce warm water at Californië</small></button>
       </div>
       <label><input type="checkbox" id="geoColumns" checked> Formation groups at the wells</label>
+      <p class="small">An asterisk (*) on a formation name marks a candidate geothermal reservoir.</p>
       <div id="groupLegend" class="legend-groups"></div>
       <figure class="ref">
         <a href="img/doornenbal2019_fig4.png" target="_blank" rel="noopener"><img src="img/doornenbal2019_fig4.png" alt="Interpreted west–east seismic line L2CAL2009A-2 across the Californië geothermal wells and the Tegelen Fault"></a>
@@ -178,9 +180,13 @@
         <label><input type="checkbox" id="compareOn"> Show two runs side by side</label>
         <label class="field">Left <select id="runA"></select></label>
         <label class="field">Right <select id="runB"></select></label>
-        <label class="field">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
+        <fieldset class="modes">
+          <label><input type="radio" name="compareMode" value="wipe" checked> One view, movable split</label>
+          <label><input type="radio" name="compareMode" value="stacked"> Two views, one above the other</label>
+        </fieldset>
+        <label class="field" id="wipeRow">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
         <button class="big" id="swapRuns">Swap left and right</button>
-        <p class="small">The same view of the line, classified by two different runs. Dragging the split across a feature shows how the classes change when the attributes change.</p>
+        <p class="small">Both modes show the same distance and time range for each run. The split can be dragged across a feature; the stacked view puts one run above the other for the whole line.</p>
       </div>
       <h3>The two maps</h3>
       <div class="row2"><canvas id="somGridA" width="132" height="132" aria-label="Left run neuron grid"></canvas><canvas id="somGridB" width="132" height="132" aria-label="Right run neuron grid"></canvas></div>
