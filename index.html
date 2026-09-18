@@ -55,7 +55,7 @@
       <h2>Line and wells</h2>
       <fieldset>
         <label><input type="checkbox" id="showWell" checked> Wells</label>
-        <label><input type="checkbox" id="showHorizons" checked> Formation picks</label>
+        <label><input type="checkbox" id="showHorizons"> Formation picks</label>
         <label><input type="checkbox" id="showUnits"> Formation group shading</label>
       </fieldset>
       <p class="small">An asterisk (*) marks a formation named as a candidate geothermal reservoir: the intervals tested in ASTEN-GT-02 at Someren, and the Zeeland Formation at Californië.</p>
@@ -105,7 +105,7 @@
         <dt>Often associated with</dt><dd id="attrGeology"></dd>
         <dt>Source</dt><dd id="attrSource" class="small"></dd>
       </dl>
-      <label><input type="checkbox" class="syncHorizons" checked> Horizons</label>
+      <label><input type="checkbox" class="syncHorizons"> Formation picks</label>
     </div>
 
     <!-- Build a SOM -->
@@ -165,10 +165,10 @@
     <div class="card" data-for="6" hidden>
       <h2>Refine and compare</h2>
       <div id="comparePanel">
-        <label><input type="checkbox" id="compareOn"> Show two runs side by side</label>
         <fieldset class="modes">
-          <label><input type="radio" name="compareMode" value="wipe" checked> One view, movable split</label>
-          <label><input type="radio" name="compareMode" value="stacked"> Two views, one above the other</label>
+          <label><input type="radio" name="compareMode" value="off" checked> One run only</label>
+          <label><input type="radio" name="compareMode" value="wipe"> Two runs, one view with a movable split</label>
+          <label><input type="radio" name="compareMode" value="stacked"> Two runs, one view above the other</label>
         </fieldset>
         <label class="field" id="wipeRow">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
         <div class="row2"><label class="field">Left <select id="runA"></select></label><label class="field">Right <select id="runB"></select></label></div>
@@ -176,7 +176,7 @@
         <label class="field">Overlay opacity <input type="range" id="somOpacity2" min="0" max="1" step="0.05" value="0.75"></label>
         <div class="row2"><canvas id="somGridA" width="132" height="132" aria-label="Left run neuron grid"></canvas><canvas id="somGridB" width="132" height="132" aria-label="Right run neuron grid"></canvas></div>
       </div>
-      <details><summary>Change the attributes and run again</summary>
+      <details open><summary>Change the attributes and run again</summary>
         <p class="small">Change the set after reading the SHAP values, then train a second SOM in the same window.</p>
         <div id="attrChecks2" class="checks attr-picks"></div>
         <p class="small">Chosen: <span id="somPicks2b">none yet</span> <span id="pickCount2" class="count"></span></p>
