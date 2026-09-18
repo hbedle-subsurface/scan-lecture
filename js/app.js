@@ -25,7 +25,7 @@
   const state = {
     stage: 1, zoom: "study", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, compareMode: "wipe", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -170,15 +170,48 @@
     cx.restore();
   }
 
+  function withPanel(top, bottom, fn) {   // temporarily narrows the plot to one horizontal band
+    const t = MARGIN.t, b = MARGIN.b; MARGIN.t = top; MARGIN.b = H - bottom;
+    try { fn(); } finally { MARGIN.t = t; MARGIN.b = b; }
+  }
+
+  function drawPanelContents(runIdx, alpha, control, s) {
+    drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
+    if (runIdx != null && state.runs[runIdx]) drawRaster(compareOverlay(runIdx), alpha);
+    if (control && state.showHorizons) drawHorizons(true);
+    if (control && state.showWell) drawWell();
+    drawSomerenLimits();
+    drawAxes(false);
+    if (runIdx != null && state.runs[runIdx]) {
+      const r = state.runs[runIdx], lab = `Run ${runIdx + 1}: ${r.features.length} attributes, ${r.side ** 2} neurons`;
+      cx.save(); cx.font = "700 13px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "left";
+      const w = cx.measureText(lab).width + 12; cx.fillStyle = "#dfe6e9"; cx.fillRect(MARGIN.l + 6, MARGIN.t + 6, w, 20);
+      cx.fillStyle = "#1f1d18"; cx.fillText(lab, MARGIN.l + 12, MARGIN.t + 16); cx.restore();
+    }
+  }
+
   function draw() {
     if (!meta || !W) return;
     topLabels = [];
     cx.clearRect(0, 0, W, H); cx.fillStyle = "#111"; cx.fillRect(0, 0, W, H);
-    drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
     const s = state.stage, control = !(s === 1 && state.hideControl);
-    if (((s === 1 && state.showUnits) || (s === 2 && state.showGeoColumns)) && control) drawWellColumns();
     const alpha = { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.somOpacity, 7: state.verdictOpacity }[s];
-    if (s >= 4 && state.compare && state.runs[state.runA] && state.runs[state.runB]) drawCompare(alpha);
+    const comparing = s >= 4 && state.compare && state.runs[state.runA] && state.runs[state.runB];
+
+    if (comparing && state.compareMode === "stacked") {
+      // the same view of the line twice, one run above the other
+      const top = MARGIN.t, bottom = H - MARGIN.b, gap = 16, mid = (top + bottom) / 2;
+      withPanel(top, mid - gap / 2, () => drawPanelContents(state.runA, alpha, control, s));
+      const keep = topLabels.length;   // the label band belongs to the upper panel only
+      withPanel(mid + gap / 2, bottom, () => drawPanelContents(state.runB, alpha, control, s));
+      topLabels.length = keep;
+      renderTopLabels();
+      return;
+    }
+
+    drawRaster({ img: baseImg, km: [meta.km_min, meta.km_max], t: [meta.t_min, meta.t_max] }, 1);
+    if (((s === 1 && state.showUnits) || (s === 2 && state.showGeoColumns)) && control) drawWellColumns();
+    if (comparing) drawCompare(alpha);
     else if (overlay && s > 2) drawRaster(overlay, alpha);
     if (control && state.showHorizons) drawHorizons(s !== 1);
     if (control && state.showWell) drawWell();
@@ -186,7 +219,7 @@
     if (s === 1 && PICK_MODE) drawPicks();
     if (s === 5 && state.sample) drawSampleMarker();
     if (s === 2) drawGeologyOverlay();
-    if (s >= 4 && run()) { const w = run().window; cx.save(); clipPlot(); cx.setLineDash([10, 5]); cx.strokeStyle = "#ffffff"; cx.lineWidth = 1.5;
+    if (s >= 4 && run() && !comparing) { const w = run().window; cx.save(); clipPlot(); cx.setLineDash([10, 5]); cx.strokeStyle = "#ffffff"; cx.lineWidth = 1.5;
       cx.strokeRect(X(w.km[0]), Y(w.t[0]), X(w.km[1]) - X(w.km[0]), Y(w.t[1]) - Y(w.t[0])); cx.restore(); }
     drawAxes(control);
     renderTopLabels();
@@ -324,6 +357,16 @@
 
   const WELL_STYLE = { "CAL-GT-04": { color: "#ffd166", labelDy: 0, zoom: "well", side: "right" }, "CAL-GT-01": { color: "#f4f1de", labelDy: 24, zoom: "well" },
     "ASTEN-GT-02": { color: "#cdb4db", labelDy: 26, zoom: "someren" } };
+  // formations named as candidate geothermal reservoirs: the intervals tested in ASTEN-GT-02 (1987)
+  // and the producing Dinantian carbonate at Californië
+  const TARGETS = {
+    "ASTEN-GT-02": new Set(["Breda Formation (Vrijherenberg Member)", "Breda Formation (Kakert Member)", "Voort Sand Member", "Basal Dongen Sand Member", "Houthem Formation"]),
+    "CAL-GT-04": new Set(["Zeeland Formation"]),
+    "CAL-GT-01": new Set(["Zeeland Formation"]),
+  };
+  const topLabelText = (wellName, unit) =>
+    unit.replace(" Formation", " Fm").replace(" Member", " Mbr") + (TARGETS[wellName]?.has(unit) ? " *" : "");
+
   const LABELED_TOPS = { "CAL-GT-04": new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation", "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]),
     "CAL-GT-01": new Set(["Veldhoven Formation", "Rupel Clay Member", "Houthem Formation", "Zeeland Formation"]),
     "ASTEN-GT-02": new Set(["Kieseloolite Formation", "Breda Formation (Vrijherenberg Member)", "Heksenberg Formation", "Breda Formation (Kakert Member)",
@@ -354,7 +397,7 @@
         const right = st.side === "right", labs = wl.tops.filter((t) => LABELED_TOPS[wl.name]?.has(t.unit) && t.twt >= meta.t_min).sort((a, b) => a.twt - b.twt);
         cx.font = "600 11px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; let lastY = -Infinity;
         for (const t of labs) {
-          const lab = t.unit.replace(" Formation", " Fm").replace(" Member", " Mbr"), tw = cx.measureText(lab).width + 8;
+          const lab = topLabelText(wl.name, t.unit), tw = cx.measureText(lab).width + 8;
           let y = Y(t.twt); if (y - lastY < 14) y = lastY + 14; lastY = y;
           const x0 = right ? X(t.km) + 14 : X(t.km) - 14 - tw;
           cx.strokeStyle = st.color; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(X(t.km) + (right ? 10 : -10), Y(t.twt)); cx.lineTo(right ? x0 : x0 + tw, y); cx.stroke();
@@ -521,6 +564,7 @@
   function wireCompare() {
     $("#compareOn").addEventListener("change", (e) => { state.compare = e.target.checked; refresh(); });
     for (const [id, key] of [["#runA", "runA"], ["#runB", "runB"]]) $(id).addEventListener("change", (e) => { state[key] = +e.target.value; refresh(); });
+    $$("[name=compareMode]").forEach((b) => b.addEventListener("change", (e) => { state.compareMode = e.target.value; $("#wipeRow").hidden = state.compareMode !== "wipe"; draw(); }));
     $("#wipe").addEventListener("input", (e) => { state.wipe = +e.target.value; draw(); });
     $("#swapRuns").addEventListener("click", () => { [state.runA, state.runB] = [state.runB, state.runA]; fillRunSelects(); refresh(); });
   }
