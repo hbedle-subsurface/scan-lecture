@@ -22,12 +22,13 @@
   </div>
   <nav class="stages" aria-label="Stages">
     <a class="tag methods" href="methods.html" target="_blank" rel="noopener">Methods</a>
-    <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and well</button>
+    <button class="tag" data-stage="1" aria-current="true"><span>1</span>Line and wells</button>
     <button class="tag" data-stage="2"><span>2</span>Geologic setting</button>
     <button class="tag" data-stage="3"><span>3</span>Attributes</button>
     <button class="tag" data-stage="4"><span>4</span>Build a SOM</button>
     <button class="tag" data-stage="5"><span>5</span>SHAP</button>
-    <button class="tag" data-stage="6"><span>6</span>Someren prospect</button>
+    <button class="tag" data-stage="6"><span>6</span>Refine and compare</button>
+    <button class="tag" data-stage="7"><span>7</span>Someren prospect</button>
   </nav>
 </header>
 
@@ -35,7 +36,8 @@
   <section class="exhibit" aria-label="Seismic section">
     <div class="viewbar">
       <div class="seg" role="group" aria-label="Zoom">
-        <button data-zoom="full" aria-pressed="true">Whole line</button>
+        <button data-zoom="study" aria-pressed="true">Study window</button>
+        <button data-zoom="full" aria-pressed="false">Whole line</button>
         <button data-zoom="someren" aria-pressed="false">Someren area</button>
         <button data-zoom="well" aria-pressed="false">Californië wells</button>
         <button data-zoom="custom" aria-pressed="false" disabled title="Drag a box on the section to zoom">Zoom box</button>
@@ -50,7 +52,7 @@
   <aside class="notes">
     <!-- Stage 1 -->
     <div class="card" data-for="1">
-      <h2>Line and well</h2>
+      <h2>Line and wells</h2>
       <fieldset>
         <label><input type="checkbox" id="showWell" checked> Wells</label>
         <label><input type="checkbox" id="showHorizons" checked> Formation picks</label>
@@ -63,11 +65,6 @@
         <label><input type="checkbox" id="pickSnap" checked> Snap to the horizon polarity within ±8 ms</label>
         <p class="small">Click adds a point. Shift-click removes the nearest point. Picked horizons replace the automatic ones along their picked extent.</p>
         <div class="row2"><button class="big" id="pickClear">Clear horizon</button><button class="big" id="pickSave">Download picks</button></div>
-      </div>
-      <div class="trace">
-        <h3>Trace at <span id="traceKm">34.19</span> km</h3>
-        <canvas id="wiggle" width="260" height="520" aria-label="Seismic trace"></canvas>
-        <p class="small">Negative values (black fill) are increases in acoustic <button class="term" data-term="impedance">impedance</button> in this dataset.</p>
       </div>
     </div>
 
@@ -90,7 +87,7 @@
       </figure>
     </div>
 
-    <!-- Stage 2 -->
+    <!-- Attributes -->
     <div class="card" data-for="3" hidden>
       <h2>Attributes</h2>
       <label class="field">Attribute
@@ -99,8 +96,8 @@
       <label class="field">Color scale <select id="attrLut"></select></label>
       <label class="field">Overlay opacity <input type="range" id="attrOpacity" min="0" max="1" step="0.05" value="0.75"></label>
       <canvas id="colorbar" width="260" height="44" aria-label="Color scale"></canvas>
-      <label><input type="checkbox" id="attrForSom"> Keep this attribute for the SOM</label>
-      <p class="small">Kept for the SOM: <span id="somPicks">none yet</span></p>
+      <label class="keep"><input type="checkbox" id="attrForSom"> Use this attribute in the SOM <span id="pickCount" class="count"></span></label>
+      <p class="small">Chosen for the SOM: <span id="somPicks2">none yet</span></p>
       <dl class="explain">
         <dt>Measures</dt><dd id="attrMeasures"></dd>
         <dt>Often associated with</dt><dd id="attrGeology"></dd>
@@ -109,27 +106,28 @@
       <label><input type="checkbox" class="syncHorizons" checked> Horizons</label>
     </div>
 
-    <!-- Stage 3 -->
+    <!-- Build a SOM -->
     <div class="card" data-for="4" hidden>
       <h2>Build a SOM</h2>
       <h3>Attributes</h3>
-      <div id="attrChecks" class="checks"></div>
+      <div id="attrChecks" class="checks attr-picks"></div>
+      <p class="small">Chosen: <span id="somPicks">none yet</span></p>
       <label class="field">Neurons
-        <select id="neurons">
+        <select id="neurons" class="neurons">
           <option value="2">4 (2 × 2)</option><option value="3">9 (3 × 3)</option><option value="4">16 (4 × 4)</option>
           <option value="5">25 (5 × 5)</option><option value="6" selected>36 (6 × 6)</option><option value="8">64 (8 × 8)</option><option value="10">100 (10 × 10)</option>
         </select>
       </label>
       <label class="field">Area along the line
-        <select id="somArea"><option value="full">Whole line</option><option value="someren">Someren area (0–21 km)</option><option value="well">Californië wells (29–40 km)</option><option value="view">Current view (zoom box)</option></select>
+        <select id="somArea"><option value="study" selected>Study window (0–40 km)</option><option value="full">Whole line</option><option value="someren">Someren area (0–21 km)</option><option value="well">Californië wells (29–40 km)</option><option value="view">Current view (zoom box)</option></select>
       </label>
       <div class="row2">
         <label class="field">Top (s) <input type="number" id="somTop" min="0.15" max="2.9" step="0.05" value="0.15"></label>
-        <label class="field">Base (s) <input type="number" id="somBase" min="0.25" max="3.0" step="0.05" value="3.00"></label>
+        <label class="field">Base (s) <input type="number" id="somBase" min="0.25" max="3.0" step="0.05" value="2.00"></label>
       </div>
       <p class="small">Attributes are converted to standard deviations within this window, and only samples inside it are trained on and classified.</p>
       <button class="big run" id="runSom">Train the SOM</button>
-      <div class="progress" id="progress" hidden><div class="bar"><span id="progressBar"></span></div><p class="small" id="progressText"></p></div>
+      <div class="progress" id="progress" hidden><div class="bar"><span id="progressBar"></span></div><p class="small"></p></div>
       <label class="field">Overlay opacity <input type="range" id="somOpacity" min="0" max="1" step="0.05" value="0.75"></label>
       <h3>The trained map</h3><button class="term help" data-term="helpSomGrid">Help me read this plot</button>
       <canvas id="somGrid" width="268" height="268" aria-label="SOM neuron grid with 2D colors; click a neuron to switch it on or off"></canvas>
@@ -138,23 +136,14 @@
       <p class="small">Click a neuron to switch it on or off on the section; shift-click shows only that neuron. Dot size is the share of samples assigned to each neuron.</p>
       <h3>Attributes that repeat each other</h3>
       <div id="redundancy" class="small"></div>
-      <div id="comparePanel" hidden>
-        <h3>Compare two runs</h3>
-        <label><input type="checkbox" id="compareOn"> Show two runs side by side</label>
-        <label class="field">Left <select id="runA"></select></label>
-        <label class="field">Right <select id="runB"></select></label>
-        <label class="field">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
-        <button class="big" id="swapRuns">Swap left and right</button>
-        <p class="small">The same view of the line, classified by two different runs. Dragging the split across a feature shows how the classes change when the attributes change.</p>
-      </div>
       <h3>Runs</h3>
       <div id="runLog" class="runlog"><p class="small">No runs yet.</p></div>
     </div>
 
-    <!-- Stage 4 -->
+    <!-- SHAP -->
     <div class="card" data-for="5" hidden>
       <h2>SHAP</h2>
-      <p class="small" id="shapRunLabel">Train a SOM in stage 3 first.</p>
+      <p class="small" id="shapRunLabel">Train a SOM in stage 4 first.</p>
       <h3>Global SHAP: how far each attribute moves samples across the map</h3><button class="term help" data-term="helpShapGlobal">Help me read this plot</button>
       <canvas id="shapGlobal" width="268" height="200" aria-label="Mean SHAP magnitude by attribute"></canvas>
       <p class="small">Mean <button class="term" data-term="shap">SHAP</button> magnitude over 400 random samples, as a fraction of the map width. Axis fixed at 0–0.3.</p>
@@ -167,8 +156,38 @@
       <p class="small">The path starts at the average position of all samples and adds each attribute's SHAP value in turn, largest first, ending at the sample's position on the map.</p>
     </div>
 
-    <!-- Stage 5 -->
+    <!-- Refine and compare -->
     <div class="card" data-for="6" hidden>
+      <h2>Refine and compare</h2>
+      <p class="small">Change the attributes after reading the SHAP values, run the SOM again, and compare the two runs on the same view of the line.</p>
+      <h3>Attributes</h3>
+      <div id="attrChecks2" class="checks attr-picks"></div>
+      <p class="small">Chosen: <span id="somPicks2b">none yet</span> <span id="pickCount2" class="count"></span></p>
+      <label class="field">Neurons
+        <select class="neurons">
+          <option value="2">4 (2 × 2)</option><option value="3">9 (3 × 3)</option><option value="4">16 (4 × 4)</option>
+          <option value="5">25 (5 × 5)</option><option value="6" selected>36 (6 × 6)</option><option value="8">64 (8 × 8)</option><option value="10">100 (10 × 10)</option>
+        </select>
+      </label>
+      <p class="small">Window: <span id="windowText"></span> (set in stage 4)</p>
+      <button class="big run" id="runSom2">Train the SOM again</button>
+      <div class="progress" hidden><div class="bar"><span></span></div><p class="small"></p></div>
+      <label class="field">Overlay opacity <input type="range" id="somOpacity2" min="0" max="1" step="0.05" value="0.75"></label>
+      <div id="comparePanel">
+        <h3>Compare two runs</h3>
+        <label><input type="checkbox" id="compareOn"> Show two runs side by side</label>
+        <label class="field">Left <select id="runA"></select></label>
+        <label class="field">Right <select id="runB"></select></label>
+        <label class="field">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
+        <button class="big" id="swapRuns">Swap left and right</button>
+        <p class="small">The same view of the line, classified by two different runs. Dragging the split across a feature shows how the classes change when the attributes change.</p>
+      </div>
+      <h3>The two maps</h3>
+      <div class="row2"><canvas id="somGridA" width="132" height="132" aria-label="Left run neuron grid"></canvas><canvas id="somGridB" width="132" height="132" aria-label="Right run neuron grid"></canvas></div>
+    </div>
+
+    <!-- Someren prospect -->
+    <div class="card" data-for="7" hidden>
       <h2>Someren prospect</h2>
       <p class="small">ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops are placed in two-way time with the migration velocities.</p>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
