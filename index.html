@@ -111,8 +111,9 @@
     <!-- Build a SOM -->
     <div class="card" data-for="4" hidden>
       <h2>Build a SOM</h2>
-      <h3>Attributes</h3>
-      <div id="attrChecks" class="checks attr-picks"></div>
+      <details open><summary>Attributes</summary>
+        <div id="attrChecks" class="checks attr-picks"></div>
+      </details>
       <p class="small">Chosen: <span id="somPicks">none yet</span></p>
       <label class="field">Neurons
         <select id="neurons" class="neurons">
@@ -136,10 +137,12 @@
       <div class="row2"><button class="big" id="neuronsAll">Show all neurons</button><button class="big" id="neuronsNone">Hide all neurons</button></div>
       <p class="small" id="neuronInfo"></p>
       <p class="small">Click a neuron to switch it on or off on the section; shift-click shows only that neuron. Dot size is the share of samples assigned to each neuron.</p>
-      <h3>Attributes that repeat each other</h3>
-      <div id="redundancy" class="small"></div>
-      <h3>Runs</h3>
-      <div id="runLog" class="runlog"><p class="small">No runs yet.</p></div>
+      <details><summary>Attributes that repeat each other</summary>
+        <div id="redundancy" class="small"></div>
+      </details>
+      <details><summary>Runs</summary>
+        <div id="runLog" class="runlog"><p class="small">No runs yet.</p></div>
+      </details>
     </div>
 
     <!-- SHAP -->
@@ -161,35 +164,32 @@
     <!-- Refine and compare -->
     <div class="card" data-for="6" hidden>
       <h2>Refine and compare</h2>
-      <p class="small">Change the attributes after reading the SHAP values, run the SOM again, and compare the two runs on the same view of the line.</p>
-      <h3>Attributes</h3>
-      <div id="attrChecks2" class="checks attr-picks"></div>
-      <p class="small">Chosen: <span id="somPicks2b">none yet</span> <span id="pickCount2" class="count"></span></p>
-      <label class="field">Neurons
-        <select class="neurons">
-          <option value="2">4 (2 × 2)</option><option value="3">9 (3 × 3)</option><option value="4">16 (4 × 4)</option>
-          <option value="5">25 (5 × 5)</option><option value="6" selected>36 (6 × 6)</option><option value="8">64 (8 × 8)</option><option value="10">100 (10 × 10)</option>
-        </select>
-      </label>
-      <p class="small">Window: <span id="windowText"></span> (set in stage 4)</p>
-      <button class="big run" id="runSom2">Train the SOM again</button>
-      <div class="progress" hidden><div class="bar"><span></span></div><p class="small"></p></div>
-      <label class="field">Overlay opacity <input type="range" id="somOpacity2" min="0" max="1" step="0.05" value="0.75"></label>
       <div id="comparePanel">
-        <h3>Compare two runs</h3>
         <label><input type="checkbox" id="compareOn"> Show two runs side by side</label>
-        <label class="field">Left <select id="runA"></select></label>
-        <label class="field">Right <select id="runB"></select></label>
         <fieldset class="modes">
           <label><input type="radio" name="compareMode" value="wipe" checked> One view, movable split</label>
           <label><input type="radio" name="compareMode" value="stacked"> Two views, one above the other</label>
         </fieldset>
         <label class="field" id="wipeRow">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
+        <div class="row2"><label class="field">Left <select id="runA"></select></label><label class="field">Right <select id="runB"></select></label></div>
         <button class="big" id="swapRuns">Swap left and right</button>
-        <p class="small">Both modes show the same distance and time range for each run. The split can be dragged across a feature; the stacked view puts one run above the other for the whole line.</p>
+        <label class="field">Overlay opacity <input type="range" id="somOpacity2" min="0" max="1" step="0.05" value="0.75"></label>
+        <div class="row2"><canvas id="somGridA" width="132" height="132" aria-label="Left run neuron grid"></canvas><canvas id="somGridB" width="132" height="132" aria-label="Right run neuron grid"></canvas></div>
       </div>
-      <h3>The two maps</h3>
-      <div class="row2"><canvas id="somGridA" width="132" height="132" aria-label="Left run neuron grid"></canvas><canvas id="somGridB" width="132" height="132" aria-label="Right run neuron grid"></canvas></div>
+      <details><summary>Change the attributes and run again</summary>
+        <p class="small">Change the set after reading the SHAP values, then train a second SOM in the same window.</p>
+        <div id="attrChecks2" class="checks attr-picks"></div>
+        <p class="small">Chosen: <span id="somPicks2b">none yet</span> <span id="pickCount2" class="count"></span></p>
+        <label class="field">Neurons
+          <select class="neurons">
+            <option value="2">4 (2 × 2)</option><option value="3">9 (3 × 3)</option><option value="4">16 (4 × 4)</option>
+            <option value="5">25 (5 × 5)</option><option value="6" selected>36 (6 × 6)</option><option value="8">64 (8 × 8)</option><option value="10">100 (10 × 10)</option>
+          </select>
+        </label>
+        <p class="small">Window: <span id="windowText"></span> (set in stage 4)</p>
+        <button class="big run" id="runSom2">Train the SOM again</button>
+        <div class="progress" hidden><div class="bar"><span></span></div><p class="small"></p></div>
+      </details>
     </div>
 
     <!-- Someren prospect -->
