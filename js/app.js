@@ -23,9 +23,9 @@
   };
 
   const state = {
-    stage: 1, zoom: "study", showWell: true, showHorizons: true, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
+    stage: 1, zoom: "study", showWell: true, showHorizons: false, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, compareMode: "wipe", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, compareMode: "off", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -496,6 +496,7 @@
     if (n === 2) setZoom("study");
     $$(".tag").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.stage === n)));
     $$(".card").forEach((c) => (c.hidden = +c.dataset.for !== n));
+    $(".notes").scrollTop = 0;
     refresh();
   }
 
@@ -562,9 +563,12 @@
   }
 
   function wireCompare() {
-    $("#compareOn").addEventListener("change", (e) => { state.compare = e.target.checked; refresh(); });
     for (const [id, key] of [["#runA", "runA"], ["#runB", "runB"]]) $(id).addEventListener("change", (e) => { state[key] = +e.target.value; refresh(); });
-    $$("[name=compareMode]").forEach((b) => b.addEventListener("change", (e) => { state.compareMode = e.target.value; $("#wipeRow").hidden = state.compareMode !== "wipe"; draw(); }));
+    $$("[name=compareMode]").forEach((b) => b.addEventListener("change", (e) => {
+      state.compareMode = e.target.value; state.compare = state.compareMode !== "off";
+      $("#wipeRow").hidden = state.compareMode !== "wipe"; refresh();
+    }));
+    $("#wipeRow").hidden = true;
     $("#wipe").addEventListener("input", (e) => { state.wipe = +e.target.value; draw(); });
     $("#swapRuns").addEventListener("click", () => { [state.runA, state.runB] = [state.runB, state.runA]; fillRunSelects(); refresh(); });
   }
@@ -718,7 +722,7 @@
       if (m.type === "map") {
         Object.assign(rec, { bmu: m.bmu, hits: m.hits, corr: m.corr }); state.runs.push(rec); state.current = state.runs.length - 1;
         state.sample = null; state.explained = null; $$(".run").forEach((b) => (b.disabled = false)); state.busy = false;
-        drawRunLog(); drawRedundancy();
+        drawRunLog(); drawRedundancy(); $(".notes").scrollTop = 0;   // bring the controls back into view after a run
         if (state.runs.length >= 2) { state.runB = state.runs.length - 1; state.runA = state.runs.length - 2; }
         fillRunSelects(); refresh();
       }
