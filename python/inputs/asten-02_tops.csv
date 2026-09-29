@@ -1,16 +1,18 @@
 unit,top_md_m,bottom_md_m
-Veghel Formation,0,35
-Sterksel Formation,35,70
-Kedichem/Tegelen Formation,70,175
-Kieseloolite Formation,175,340
-Breda Formation (Vrijherenberg Member),340,695
-Heksenberg Formation,695,850
-Breda Formation (Kakert Member),850,1093
-Veldhoven Clay Member,1093,1196
-Voort Sand Member,1196,1397
-Boom Clay Member,1397,1494
-Berg Sand Member,1494,1513.5
-Basal Dongen Sand Member,1513.5,1530.5
-Landen Clay Member,1530.5,1607
-Heers Sand Member,1607,1639
-Houthem Formation,1639,1673
+Quaternary (undifferentiated),0,169
+Kieseloolite Formation,169,357
+Oosterhout Formation,357,458
+Diessen Formation,458,525
+Groote Heide Formation,525,707
+Someren Member,707,857
+Wintelre Member,857,1173
+Voort Member,1173,1401
+Steensel Member,1401,1415
+Boom Member,1415,1494
+Berg Member,1494,1513
+Reusel Member,1513,1558
+Liessel Member,1558,1586
+Gelinden Member,1586,1606
+Orp Member,1606,1632
+Swalmen Member,1632,1635
+Houthem Formation,1635,1673

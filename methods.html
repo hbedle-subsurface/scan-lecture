@@ -39,6 +39,10 @@
 <h2>2. Attributes</h2>
 <p>Attributes are computed on every eighth CDP (20 m) and exported every 4 ms. Most are averaged over 140 m along the line and 62 ms in time, so that they describe the character of a seismic facies rather than individual reflections. Relative acoustic impedance and AVT are averaged over 140 m and 10 ms, the four stack amplitudes over 140 m only, and the three phase attributes are not averaged, because an average across the ±180° phase wrap has no physical meaning. Relative acoustic impedance, RMS amplitude and AVT were computed in AASPI; the other attributes were computed in Python. Each attribute's page in stage 3 gives what it measures and its original reference.</p>
 
+<h3>2.1 Attributes along the wells, and how different a target is</h3>
+<p>For the exercise, every attribute is read at the 20 m trace nearest the projected path of CAL-GT-04 and ASTEN-GT-02 at each 4 ms sample, and each sample is assigned to a formation from the well tops. How different a target is from the rock above it is the mean of the target samples at CAL-GT-04 minus the mean of the samples in the formations above, divided by the pooled standard deviation of the two groups (Cohen's d): the Houthem and Maastricht formations against the Landen Clay, Gelinden, Heers and Swalmen members (9 and 19 samples), or the Zeeland Formation against the Epen Formation and Geverik Member (55 and 56 samples). CAL-GT-04 lies 0.5 km from the line at the Houthem and 0.9–1.3 km through the Zeeland. Consecutive samples are not independent, because most attributes are averaged over 62 ms.</p>
+<p>A pick point can be snapped to the nearest peak, trough or zero crossing within 16 ms of the click, on the mean of the three 10 m traces around it; peaks and troughs are placed between samples with a parabola through three samples, and zero crossings by linear interpolation. The attribute along a pick is the mean of five 4 ms samples centered on the pick at each 20 m trace. The SOM classes of a target are the neurons of the samples between its top and base at CAL-GT-04, read along the projected well path.</p>
+
 <h2>3. Self-organizing map</h2>
 <h3>3.1 Input</h3>
 <p>For the chosen window (a range along the line and a range of two-way time), each chosen attribute is converted to a z-score using its mean and standard deviation over all samples in the window:</p>
@@ -99,6 +103,7 @@
 <ul class="refs">
   <li>Doornenbal, J. C., H. Kombrink, R. Bouroullec, et al., 2019, New insights on subsurface energy resources in the Southern North Sea Basin area: Geological Society, London, Special Publications, 494, 233–268.</li>
   <li>Kohonen, T., 1982, Self-organized formation of topologically correct feature maps: Biological Cybernetics, 43, 59–69.</li>
+  <li>Munsterman, D. K., 2021, Lithostratigrafische update van resultaten op basis van eerder palynologisch onderzoek in boring Asten-GT-02 (AST-GT-02), interval 158–1532,07 m: TNO report 2021 R10829, Geologische Dienst Nederland, nlog.nl.</li>
   <li>Lundberg, S. M., and S.-I. Lee, 2017, A unified approach to interpreting model predictions: Advances in Neural Information Processing Systems, 30, 4765–4774.</li>
   <li>Štrumbelj, E., and I. Kononenko, 2014, Explaining prediction models and individual predictions with feature contributions: Knowledge and Information Systems, 41, 647–665.</li>
   <li>Taner, M. T., F. Koehler, and R. E. Sheriff, 1979, Complex seismic trace analysis: Geophysics, 44, 1041–1063.</li>

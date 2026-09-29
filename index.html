@@ -17,7 +17,8 @@
     <p>From the Californië geothermal wells to the Someren prospect, southeastern Netherlands</p>
   </div>
   <div class="job" aria-label="Exploration context">
-    <p><strong>Someren license:</strong> candidate aquifers are the Cenozoic sands tested in ASTEN-GT-02 (1987): the Breda Formation, the Voort Sand of the Veldhoven Formation, the Basal Dongen Sand and the Houthem Formation, with potential for deeper geothermal below the Cenozoic section.</p>
+    <p class="beforeReveal"><strong>Someren license:</strong> the prospect area on the western part of the line, in the Roer Valley Graben. The well inside the license is hidden until the last step of the exercise, so the prospect is explored from the Californië wells.</p>
+    <p class="afterReveal" hidden><strong>Someren license:</strong> candidate aquifers are the intervals tested in ASTEN-GT-02 (1987): the sands of the 1987 Breda Formation (Oosterhout to Veldhoven formations in the 2021 TNO revision), the Voort Member, the Reusel Member (the 1987 Basal Dongen Sand) and the Houthem Formation, with potential for deeper geothermal below the Cenozoic section.</p>
     <p><strong>Californië wells:</strong> warm water is produced from the karstified Dinantian carbonate of the Zeeland Formation.</p>
   </div>
   <nav class="stages" aria-label="Stages">
@@ -33,6 +34,39 @@
 </header>
 
 <main class="board">
+  <aside class="exercise-col" aria-label="Exercise">
+    <details class="card exercise" open>
+      <summary><h2>Exercise</h2></summary>
+      <p class="small">The well inside the Someren license is hidden. The task is to find where the Houthem Formation, or the deeper Zeeland Formation, lies under the license, starting from the Californië wells and using seismic attributes, a SOM and SHAP.</p>
+      <p class="small">Words used here: <button class="term" data-term="section">seismic section</button>, <button class="term" data-term="twt">two-way time</button>, <button class="term" data-term="welltops">well tops</button>, <button class="term" data-term="peaktrough">peak and trough</button>, <button class="term" data-term="horizon">picking</button>, <button class="term" data-term="faultgraben">fault and graben</button>, <button class="term" data-term="attribute">attribute</button>, <button class="term" data-term="som">SOM</button>, <button class="term" data-term="shap">SHAP</button>.</p>
+      <label class="field">Target</label>
+      <div class="seg ex-seg" role="group" aria-label="Target" id="exTarget">
+        <button data-target="houthem" aria-pressed="true">Houthem Fm</button><button data-target="zeeland" aria-pressed="false">Zeeland Fm</button>
+      </div>
+      <div class="events" id="exSteps">
+        <button data-ex="1" aria-pressed="false"><b>1. The seismic line</b><small>SCAN029 from Californië in the east to the Someren license in the west</small></button>
+        <button data-ex="2" aria-pressed="false"><b>2. The Californië wells</b><small>The well tops on the section: the Houthem at about 0.74 s and the Zeeland at about 1.2 s at CAL-GT-04</small></button>
+        <button data-ex="3" aria-pressed="false"><b>3. The geology along the line</b><small>The events that shaped the section, and the fault zone between Californië and Someren</small></button>
+        <button data-ex="4" aria-pressed="false"><b>4. Pick the target toward Someren</b><small>Clicks on the section add points to a pick, from the well westward across the fault zone</small></button>
+        <button data-ex="5" aria-pressed="false"><b>5. Attributes at the well</b><small>Each attribute along CAL-GT-04, and how different the target is from the rock above it</small></button>
+        <button data-ex="6" aria-pressed="false"><b>6. Attributes along the pick</b><small>The displayed attribute on the section and along the pick from Californië to Someren</small></button>
+        <button data-ex="7" aria-pressed="false"><b>7. Build a SOM</b><small>The four attributes that set the target apart most, skipping near-duplicates, go to the SOM</small></button>
+        <button data-ex="8" aria-pressed="false"><b>8. Where the target's classes occur</b><small>Only the SOM classes of the target at CAL-GT-04 are shown along the line</small></button>
+        <button data-ex="9" aria-pressed="false"><b>9. SHAP</b><small>Which attributes place samples in those classes</small></button>
+        <button data-ex="10" aria-pressed="false"><b>10. Reveal the Someren well</b><small>The well inside the license, its Houthem top against the pick, and the SOM classes at the well</small></button>
+      </div>
+      <div id="pickCtl" hidden>
+        <p class="small">Picking is on: clicks on the section add points. Dragging a box still zooms. <span id="pickInfo"></span></p>
+        <label class="field">Snap each point to <button class="term" data-term="snap">snapping</button>
+          <select id="pickSnap"><option value="none">No snapping</option><option value="peak">Nearest peak (positive amplitude)</option><option value="trough">Nearest trough (negative amplitude)</option><option value="zero">Nearest zero crossing</option></select></label>
+        <div class="row2"><button class="big" id="pickUndo">Remove last point</button><button class="big" id="pickClearAll">Clear pick</button></div>
+        <button class="big" id="pickDone">Done picking</button>
+      </div>
+      <p class="small" id="exInfo"></p>
+      <div id="revealReport"></div>
+    </details>
+  </aside>
+
   <section class="exhibit" aria-label="Seismic section">
     <div class="viewbar">
       <div class="seg" role="group" aria-label="Zoom">
@@ -47,6 +81,14 @@
       <div class="readout" id="readout">Drag a box on the section to zoom. Move over it to read values.</div>
     </div>
     <div class="canvaswrap"><canvas id="section" aria-label="Seismic section display"></canvas></div>
+    <div id="pickProfileWrap" hidden><canvas id="pickProfile" aria-label="Attribute along the pick"></canvas></div>
+    <div class="expanel" id="exPanel" hidden>
+      <div><canvas id="exWell" aria-label="The displayed attribute along the wells"></canvas>
+        <button class="term help" data-term="helpExWell">Reading the well tracks</button></div>
+      <div><h3 id="exBarsTitle">How different the target is</h3>
+        <canvas id="exBars" width="300" height="360" aria-label="How different the target is from the rock above it, for every attribute"></canvas>
+        <p class="small" id="exBarsNote"></p><button class="term help" data-term="separationEx">How this is measured</button></div>
+    </div>
   </section>
 
   <aside class="notes">
@@ -58,7 +100,7 @@
         <label><input type="checkbox" id="showHorizons"> Formation picks</label>
         <label><input type="checkbox" id="showUnits"> Formation group shading</label>
       </fieldset>
-      <p class="small">An asterisk (*) marks a formation named as a candidate geothermal reservoir: the intervals tested in ASTEN-GT-02 at Someren, and the Zeeland Formation at Californië.</p>
+      <p class="small">An asterisk (*) marks a formation named as a candidate geothermal reservoir: the Houthem Formation and the Zeeland Formation at Californië<span class="afterReveal" hidden>, and the intervals tested in ASTEN-GT-02 at Someren</span>.</p>
       <button class="big" id="hideWellControl" aria-pressed="false">Hide all well control</button>
       <div class="pick" id="pickPanel" hidden>
         <h3>Pick horizons</h3>
@@ -76,7 +118,7 @@
       <div class="events">
         <button data-geo="33.3,35.3,0.85,1.10" aria-pressed="false"><b>Carboniferous → Permian</b><small>Variscan uplift and erosion; Zechstein rests on Namurian shale at Californië (Base Permian unconformity)</small></button>
         <button data-geo="33.8,35.3,0.70,0.82" aria-pressed="false"><b>Late Cretaceous</b><small>Inversion of the Roer Valley Graben; at Californië, Maastricht chalk rests on the Lower Buntsandstein</small></button>
-        <button data-geo="10.5,14.5,1.30,1.55" aria-pressed="false"><b>Paleocene–Eocene → Oligocene</b><small>Erosion at the base of the Oligocene; Berg (Vessem) sand rests on Basal Dongen Sand in ASTEN-GT-02</small></button>
+        <button data-geo="10.5,14.5,1.30,1.55" aria-pressed="false"><b>Paleocene–Eocene → Oligocene</b><small>Erosion at the base of the Oligocene; in the graben the Oligocene rests on the Paleocene, and the whole Eocene is missing</small></button>
         <button data-geo="12.0,22.0,0.30,1.60" aria-pressed="false"><b>Late Oligocene → present</b><small>Graben subsidence along the Peel Boundary Fault, with up to 1000 m of throw and up to 2000 m of Cenozoic fill</small></button>
         <button data-geo="33.3,35.3,1.10,1.60" aria-pressed="false"><b>Dinantian</b><small>Carbonate platform; karst and fracture permeability produce warm water at Californië</small></button>
       </div>
@@ -195,7 +237,8 @@
     <!-- Someren prospect -->
     <div class="card" data-for="7" hidden>
       <h2>Someren prospect</h2>
-      <p class="small">ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops are placed in two-way time with the migration velocities.</p>
+      <p class="small beforeReveal">The well inside the license is hidden until the last step of the exercise.</p>
+      <p class="small afterReveal" hidden>ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops, from the 2021 TNO revision, are placed in two-way time with the migration velocities.</p>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
       <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid; click a neuron to switch it on or off"></canvas>
       <div class="row2"><button class="big" id="neuronsAllV">Show all neurons</button><button class="big" id="neuronsNoneV">Hide all neurons</button></div>

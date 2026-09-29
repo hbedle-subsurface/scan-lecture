@@ -122,3 +122,32 @@ button,select,input{font:inherit}
 
 .tag.methods{text-decoration:none;background:transparent;color:var(--paper);border:1px solid var(--paper-edge);opacity:1}
 .foot a{color:var(--paper)}
+
+/* ---------- three columns: exercise steps on the left, the section in the middle, the stage controls on the right ---------- */
+.board{grid-template-columns:260px minmax(0,1fr) 300px}
+.exercise-col{min-width:0;display:flex;flex-direction:column;gap:14px}
+.exercise-col .card{position:sticky;top:10px;max-height:calc(100vh - 20px);overflow-y:auto}
+.exercise-col .events button small{font-size:.78rem}
+.exercise summary{cursor:pointer;list-style:none}
+.exercise summary::-webkit-details-marker{display:none}
+.exercise summary h2{display:inline}
+.exercise summary::after{content:" ▾";font-size:1rem;color:var(--ink-soft)}
+.exercise[open] summary::after{content:" ▴"}
+.ex-seg{margin:2px 0 10px;border-color:var(--ink-soft)}
+.ex-seg button{color:var(--ink)}
+.ex-seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+#revealReport p{margin:6px 0}
+#pickProfileWrap{margin-top:8px}
+#pickProfile{display:block;width:100%;height:150px;background:#fffaf0;border-radius:2px}
+.expanel{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;margin-top:10px;color:var(--chalk)}
+.expanel h3{margin:0 0 4px;font-family:var(--font-display)}
+#exWell{display:block;width:100%;height:460px;background:#fffaf0;border-radius:2px}
+#exBars{display:block;width:100%;height:auto;background:#fffaf0;cursor:pointer}
+.expanel .term.help{color:var(--chalk)}
+@media (max-width:1250px){
+  .board{grid-template-columns:minmax(0,1fr) 300px}
+  .exercise-col{grid-column:1 / -1}
+  .exercise-col .card{position:static;max-height:none}
+}
+@media (max-width:900px){ .board{grid-template-columns:1fr} .expanel{grid-template-columns:1fr} }
+.expanel .small{color:var(--chalk-dim)}

@@ -6,11 +6,20 @@ The page loads precomputed data and trains the SOM in the browser, so it runs on
 
 ## Exercise
 
-1. The section, with the Californië wells and karst zones at the east end, and the Someren license crossing and ASTEN-GT-02 at the west end. A short note under the title states the candidate aquifers at Someren and the producing interval at Californië.
-2. Attributes, one at a time, over the whole line.
-3. A SOM trained on a chosen combination of attributes and number of neurons.
-4. SHAP values for that SOM, showing which attributes place samples where on the map, followed by further runs with other combinations.
-5. The classes in the Someren area, where the only calibration is what was learned at the Californië end of the line.
+A guided exercise for students new to seismic interpretation and attributes runs in a panel on the left of the page, with the stage controls on the right. The well inside the Someren license, ASTEN-GT-02, is hidden until the last step, and the task is to find the Houthem Formation, or the deeper Zeeland Formation, under the license, starting from the Californië wells. A target switch chooses between the two.
+
+1. The seismic line, from Californië in the east to the Someren license in the west.
+2. The Californië wells and their tops on the section.
+3. The geology along the line, including the fault zone between Californië and Someren.
+4. Picking the target from CAL-GT-04 westward across the fault zone. Clicks add points; each point can snap to the nearest peak, trough or zero crossing within 16 ms.
+5. Attributes at the well: the displayed attribute as a track along CAL-GT-04 beside the formations, and a bar for every attribute giving how different the target (Houthem and Maastricht; or Zeeland) is from the formations above it (Landen Clay to Swalmen; or Epen and Geverik), in pooled standard deviations. Clicking a bar shows that attribute.
+6. The displayed attribute along the pick, in a panel lined up with the section.
+7. A SOM on the four attributes that set the target apart most, skipping attributes that correlate at 0.9 or more along the well with one already chosen.
+8. Only the SOM classes of the target samples at CAL-GT-04, shown along the line.
+9. SHAP for those classes.
+10. The reveal: ASTEN-GT-02 appears on the section and beside CAL-GT-04 in the well tracks, and the panel reports its Houthem top against the Houthem pick at the well, the share of its Houthem samples on the Houthem neurons of CAL-GT-04 for the current SOM, and the Veldhoven Formation at the two wells. No well reaches the Zeeland under the license, so a Zeeland pick is reported but not tested.
+
+Reloading the page hides the well again and clears the picks and SOM runs.
 
 ## Stages
 
@@ -58,6 +67,7 @@ python build_data.py
 | 3 | `step3_horizons.py` | Six horizons, 30–39 km |
 | 4 | `step4_attributes.py` | Attributes on a 20 m grid, including the AASPI attributes |
 | 6 | `step6_export.py` | `data/meta.json` and binary arrays |
+| 8 | `step8_wells.py` | `data/wells.json`: every attribute along CAL-GT-04 and ASTEN-GT-02, with the formation of each sample, for the exercise; runs from `data/` alone |
 
 Well inputs are in `python/inputs/`: formation tops from NLOG, and deviation survey stations (a subset of the NLOG survey stations; the full survey can replace the file in the same column format).
 
@@ -65,7 +75,7 @@ Well inputs are in `python/inputs/`: formation tops from NLOG, and deviation sur
 
 **Gain.** The PreSTM stacks have no gain applied after migration. One gain curve, the inverse of the smoothed median RMS amplitude at each time, is applied to every trace, so lateral amplitude differences are preserved.
 
-**Wells.** Three wells are shown. ASTEN-GT-02 (AST-GT-02) is a vertical geothermal exploration well drilled by TNO in 1986–1987, inside the Someren license. Its tops come from the TNO geological end-of-well report (depths below rotary table, 30.34 m above NAP) and use the 1987 nomenclature of NAM and RGD (1980), so some names differ from current usage (for example Boom Clay Member for what is now the Rupel Clay Member). The report lists the Breda Formation, the Voort Sand Member of the Veldhoven Formation, the Basal Dongen Sand Member and the Houthem Formation as the intervals tested for geothermal use. Its NLOG location (RD 182010, 376840) projects to 12.5 km along the line, 95 m from it. Its logs (gamma ray, density, neutron; no sonic) do not include a velocity log, so its tops are placed in two-way time with the migration velocities; the Houthem Formation top falls at 1.51 s, on the strong reflector at the base of the Cenozoic section.
+**Wells.** Three wells are shown. ASTEN-GT-02 (AST-GT-02) is a vertical geothermal exploration well drilled by TNO in 1986–1987, inside the Someren license. Its tops follow the palynological revision in TNO report 2021 R10829 (Munsterman, 2021), taken as depths below the rotary table at 30.34 m above NAP, the reference of the 1987 logs; the 1987 tops from the TNO geological end-of-well report are kept in `python/inputs/asten-02_tops_1987.csv`. The report lists the Breda Formation, the Voort Sand Member of the Veldhoven Formation, the Basal Dongen Sand Member and the Houthem Formation as the intervals tested for geothermal use. Its NLOG location (RD 182010, 376840) projects to 12.5 km along the line, 95 m from it. Its logs (gamma ray, density, neutron; no sonic) do not include a velocity log, so its tops are placed in two-way time with the migration velocities; the Houthem Formation top falls at 1.51 s, on the strong reflector at the base of the Cenozoic section.
 
 Two Californië wells are also shown. CAL-GT-04 (development well) is projected with its deviation survey. CAL-GT-01 (exploration well, sidetracked) has only its end-point offsets and vertical depth in NLOG, so its path is estimated as vertical to a kickoff at 642 m measured depth and straight to total depth; it lies 1.8–2.3 km from the line. CAL-GT-01 is the only one of the two with the Upper North Sea Group divided into formations (Breda Formation 56–336 m, Veldhoven Formation 336–526 m). Formation tops are from NLOG. The English NLOG pages translate two member names; the Dutch names Landen Clay Member and Heers Member are used here.
 
@@ -103,6 +113,7 @@ Attributes other than relative acoustic impedance and AVT are averaged over a 14
 - Hart, B. S., 2008, Channel detection in 3-D seismic data using sweetness: AAPG Bulletin, 92, 733–742.
 - van Lochem, H., M. ter Borgh, and H. Mijnlieff, 2019, Geological evaluation for the seismic acquisition programme for SCAN areas F (Oost-Brabant and Noord-Limburg) and G (Zuid-Limburg): SCAN report, EBN and TNO, nlog.nl.
 - Kohonen, T., 1982, Self-organized formation of topologically correct feature maps: Biological Cybernetics, 43, 59–69.
+- Munsterman, D. K., 2021, Lithostratigrafische update van resultaten op basis van eerder palynologisch onderzoek in boring Asten-GT-02 (AST-GT-02), interval 158–1532,07 m: TNO report 2021 R10829, Geologische Dienst Nederland.
 - Lundberg, S. M., and S.-I. Lee, 2017, A unified approach to interpreting model predictions: Advances in Neural Information Processing Systems, 30, 4765–4774.
 - Štrumbelj, E., and I. Kononenko, 2014, Explaining prediction models and individual predictions with feature contributions: Knowledge and Information Systems, 41, 647–665.
 - Marfurt, K. J., R. L. Kirlin, S. L. Farmer, and M. S. Bahorich, 1998, 3-D seismic attributes using a semblance-based coherency algorithm: Geophysics, 63, 1150–1165.
