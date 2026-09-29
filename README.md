@@ -12,12 +12,12 @@ A guided exercise for students new to seismic interpretation and attributes runs
 2. The Californië wells and their tops on the section.
 3. The geology along the line, including the fault zone between Californië and Someren.
 4. Picking the target from CAL-GT-04 westward across the fault zone. Clicks add points; each point can snap to the nearest peak, trough or zero crossing within 16 ms.
-5. Attributes at the well: the displayed attribute as a track along CAL-GT-04 beside the formations, and a bar for every attribute giving how different the target (Houthem and Maastricht; or Zeeland) is from the formations above it (Landen Clay to Swalmen; or Epen and Geverik), in pooled standard deviations. Clicking a bar shows that attribute.
-6. The displayed attribute along the pick, in a panel lined up with the section.
-7. A SOM on the four attributes that set the target apart most, skipping attributes that correlate at 0.9 or more along the well with one already chosen.
-8. Only the SOM classes of the target samples at CAL-GT-04, shown along the line.
-9. SHAP for those classes.
-10. The reveal: ASTEN-GT-02 appears on the section and beside CAL-GT-04 in the well tracks, and the panel reports its Houthem top against the Houthem pick at the well, the share of its Houthem samples on the Houthem neurons of CAL-GT-04 for the current SOM, and the Veldhoven Formation at the two wells. No well reaches the Zeeland under the license, so a Zeeland pick is reported but not tested.
+5. Attributes on the section and along the pick, in a panel lined up with the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
+6. A SOM on the chosen attributes.
+7. Choosing the target's classes: neurons are switched on and off on the SOM grid, with the neuron of each sample given when moving over the section.
+8. SHAP for those classes.
+9. Refining: another SOM with a different combination of attributes or number of neurons, compared with the first.
+10. The reveal: ASTEN-GT-02 appears on the section, and the panel reports its Houthem top against the Houthem pick at the well, and, for every SOM with classes switched off, how many of the well's Houthem samples fall on the classes left on. No well reaches the Zeeland under the license, so a Zeeland pick is reported but not tested.
 
 Reloading the page hides the well again and clears the picks and SOM runs.
 
@@ -67,7 +67,6 @@ python build_data.py
 | 3 | `step3_horizons.py` | Six horizons, 30–39 km |
 | 4 | `step4_attributes.py` | Attributes on a 20 m grid, including the AASPI attributes |
 | 6 | `step6_export.py` | `data/meta.json` and binary arrays |
-| 8 | `step8_wells.py` | `data/wells.json`: every attribute along CAL-GT-04 and ASTEN-GT-02, with the formation of each sample, for the exercise; runs from `data/` alone |
 
 Well inputs are in `python/inputs/`: formation tops from NLOG, and deviation survey stations (a subset of the NLOG survey stations; the full survey can replace the file in the same column format).
 

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=2026-09-29-exercise2">
 <script data-goatcounter="https://hbedle.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
@@ -48,12 +48,12 @@
         <button data-ex="2" aria-pressed="false"><b>2. The Californië wells</b><small>The well tops on the section: the Houthem at about 0.74 s and the Zeeland at about 1.2 s at CAL-GT-04</small></button>
         <button data-ex="3" aria-pressed="false"><b>3. The geology along the line</b><small>The events that shaped the section, and the fault zone between Californië and Someren</small></button>
         <button data-ex="4" aria-pressed="false"><b>4. Pick the target toward Someren</b><small>Clicks on the section add points to a pick, from the well westward across the fault zone</small></button>
-        <button data-ex="5" aria-pressed="false"><b>5. Attributes at the well</b><small>Each attribute along CAL-GT-04, and how different the target is from the rock above it</small></button>
-        <button data-ex="6" aria-pressed="false"><b>6. Attributes along the pick</b><small>The displayed attribute on the section and along the pick from Californië to Someren</small></button>
-        <button data-ex="7" aria-pressed="false"><b>7. Build a SOM</b><small>The four attributes that set the target apart most, skipping near-duplicates, go to the SOM</small></button>
-        <button data-ex="8" aria-pressed="false"><b>8. Where the target's classes occur</b><small>Only the SOM classes of the target at CAL-GT-04 are shown along the line</small></button>
-        <button data-ex="9" aria-pressed="false"><b>9. SHAP</b><small>Which attributes place samples in those classes</small></button>
-        <button data-ex="10" aria-pressed="false"><b>10. Reveal the Someren well</b><small>The well inside the license, its Houthem top against the pick, and the SOM classes at the well</small></button>
+        <button data-ex="5" aria-pressed="false"><b>5. Attributes along the pick</b><small>Each attribute on the section and along the pick; the ones kept here go to the SOM</small></button>
+        <button data-ex="6" aria-pressed="false"><b>6. Build a SOM</b><small>The chosen attributes and the number of neurons; the SOM trains in the browser</small></button>
+        <button data-ex="7" aria-pressed="false"><b>7. Choose the target's classes</b><small>Neurons switched on and off on the SOM grid, to keep the classes of the target</small></button>
+        <button data-ex="8" aria-pressed="false"><b>8. SHAP</b><small>Which attributes place samples in those classes</small></button>
+        <button data-ex="9" aria-pressed="false"><b>9. Refine and build another SOM</b><small>Another combination of attributes or neurons, compared with the first</small></button>
+        <button data-ex="10" aria-pressed="false"><b>10. Reveal the Someren well</b><small>The well inside the license, its Houthem top against the pick, and each SOM's classes at the well</small></button>
       </div>
       <div id="pickCtl" hidden>
         <p class="small">Picking is on: clicks on the section add points. Dragging a box still zooms. <span id="pickInfo"></span></p>
@@ -82,13 +82,6 @@
     </div>
     <div class="canvaswrap"><canvas id="section" aria-label="Seismic section display"></canvas></div>
     <div id="pickProfileWrap" hidden><canvas id="pickProfile" aria-label="Attribute along the pick"></canvas></div>
-    <div class="expanel" id="exPanel" hidden>
-      <div><canvas id="exWell" aria-label="The displayed attribute along the wells"></canvas>
-        <button class="term help" data-term="helpExWell">Reading the well tracks</button></div>
-      <div><h3 id="exBarsTitle">How different the target is</h3>
-        <canvas id="exBars" width="300" height="360" aria-label="How different the target is from the rock above it, for every attribute"></canvas>
-        <p class="small" id="exBarsNote"></p><button class="term help" data-term="separationEx">How this is measured</button></div>
-    </div>
   </section>
 
   <aside class="notes">
@@ -257,6 +250,6 @@
   Seismic: SCAN line L2EBN2020ASCAN029, EBN and TNO, via NLOG. Well: CAL-GT-04, NLOG.
   Content CC BY-SA 4.0, Heather Bedle, University of Oklahoma.
 </footer>
-<script src="js/app.js"></script>
+<script src="js/app.js?v=2026-09-29-exercise2"></script>
 </body>
 </html>

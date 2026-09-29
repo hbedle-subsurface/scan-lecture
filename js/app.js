@@ -498,7 +498,7 @@
     drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); updateNeuronInfo();
     for (const [id, idx] of [["#somGridA", state.runA], ["#somGridB", state.runB]]) { const c = $(id); if (c && state.runs[idx]) drawGridFor(c, state.runs[idx]); } drawShapGlobal(); drawShapSample();
     draw();
-    updatePickInfo(); drawPickProfile(); drawExPanel();
+    updatePickInfo(); drawPickProfile();
   }
 
   function setZoom(z) { state.zoom = z; if (z !== "custom") state.zoomT = null; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
@@ -839,7 +839,6 @@
 
   /* ---------- the guided exercise: finding the Houthem or the Zeeland under the Someren license from the Californië wells,
      with ASTEN-GT-02 hidden until the last step ---------- */
-  let wellsAttr = null;
   const HIDDEN_WELL = "ASTEN-GT-02", ANALOG = "CAL-GT-04";
   const EX_TARGETS = {
     houthem: { label: "Houthem Formation", short: "Houthem", unit: "Houthem Formation", color: "#00e5ff",
@@ -849,13 +848,11 @@
       group: ["Zeeland Formation"], groupLabel: "Zeeland (carbonate)",
       around: ["Epen Formation", "Geverik Member"], aroundLabel: "Epen and Geverik (shale, above)" },
   };
-  state.explore = { revealed: false, target: "houthem", picks: { houthem: [], zeeland: [] }, picking: false, snap: "none", neurons: null };
+  state.explore = { revealed: false, target: "houthem", picks: { houthem: [], zeeland: [] }, picking: false, snap: "none" };
   const tgt = () => EX_TARGETS[state.explore.target];
   const curPick = () => state.explore.picks[state.explore.target];
   const wellMeta = (name) => (meta.wells || []).find((w) => w.name === name);
-  const wAttr = (name) => wellsAttr && wellsAttr.wells.find((w) => w.name === name);
   const gridT = (j) => meta.t_min + j * meta.grid.dt;
-  const unitOf = (w, t) => { const u = w.units.find((v) => t >= v.top_twt && t < v.base_twt); return u ? u.name : null; };
   const unitShort = (n) => n.replace(" Formation", " Fm").replace(" Member", " Mbr").replace(" (undifferentiated)", "");
   function pathAt(w, t) {   // km of a well path at two-way time t
     const p = w.path.filter((q, i) => i === 0 || q.twt > w.path[i - 1].twt);
@@ -872,34 +869,6 @@
     c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
     const g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); return { g, w: r.width, h: r.height };
   }
-  function corr(a, b) {
-    const n = a.length; if (n < 5) return null;
-    const ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n;
-    let ab = 0, aa = 0, bb = 0; for (let i = 0; i < n; i++) { ab += (a[i] - ma) * (b[i] - mb); aa += (a[i] - ma) ** 2; bb += (b[i] - mb) ** 2; }
-    return aa && bb ? ab / Math.sqrt(aa * bb) : null;
-  }
-
-  /* how different the target is from the rock above it at CAL-GT-04: difference of the two group means in pooled standard deviations */
-  function separations() {
-    const w = wAttr(ANALOG), T = tgt(), inG = [], inA = [];
-    w.j.forEach((j, k) => { const u = unitOf(w, gridT(j)); if (T.group.includes(u)) inG.push(k); else if (T.around.includes(u)) inA.push(k); });
-    const mean = (v) => v.reduce((s, x) => s + x, 0) / v.length, vr = (v, m) => v.reduce((s, x) => s + (x - m) ** 2, 0) / (v.length - 1);
-    return { rows: Object.keys(meta.attributes).map((k) => {
-      const a = inG.map((i) => w.attrs[k][i]), b = inA.map((i) => w.attrs[k][i]);
-      if (a.length < 5 || b.length < 5) return [k, null];
-      const ma = mean(a), mb = mean(b), sd = Math.sqrt((vr(a, ma) + vr(b, mb)) / 2);
-      return [k, sd ? (ma - mb) / sd : null];
-    }), nG: inG.length, nA: inA.length, idx: [...inG, ...inA] };
-  }
-  function chooseForSom(nPick = 4) {   // largest separations, skipping attributes that correlate at 0.9 or more along the well with one already chosen
-    const w = wAttr(ANALOG), s = separations(), rows = s.rows.filter(([, d]) => d != null).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])), chosen = [];
-    for (const [k] of rows) {
-      if (chosen.length >= nPick) break;
-      if (!chosen.some((c) => Math.abs(corr(s.idx.map((i) => w.attrs[k][i]), s.idx.map((i) => w.attrs[c][i])) ?? 0) >= 0.9)) chosen.push(k);
-    }
-    return chosen;
-  }
-
   function applyHidden() {
     const hid = !state.explore.revealed;
     if (hid) state.hiddenWells.add(HIDDEN_WELL); else state.hiddenWells.delete(HIDDEN_WELL);
@@ -938,7 +907,6 @@
     const p = curPick();
     $("#pickInfo").textContent = p.length ? `${tgt().short} pick: ${p.length} point${p.length > 1 ? "s" : ""}, ${p[0][0].toFixed(1)}–${p[p.length - 1][0].toFixed(1)} km.` : `${tgt().short} pick: no points yet.`;
     $("#pickProfileWrap").hidden = !(p.length >= 2 && state.stage <= 3);
-    $("#exPanel").hidden = state.stage !== 3 || !wellsAttr;
   }
   function drawExPicks() {
     for (const key of Object.keys(EX_TARGETS)) {
@@ -989,61 +957,6 @@
     g.stroke(); g.restore();
   }
 
-  /* the attribute along the wells as tracks, with the formations beside it: measured depth on the left of each track,
-     two-way time on the right of the panel; ASTEN-GT-02 is added after the reveal */
-  let exBarRows = [];
-  function drawExWell() {
-    const c = $("#exWell"), s = sizeCanvas(c); if (!s || !wellsAttr) return;
-    const { g, w, h } = s, key = state.attr, A = meta.attributes[key], T = tgt(), top = 40, bot = 10, R = 40, t0 = 0.15, t1 = 1.6;
-    const Yt = (t) => top + (t - t0) / (t1 - t0) * (h - top - bot);
-    g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, h);
-    const wells = [ANALOG, ...(state.explore.revealed ? [HIDDEN_WELL] : [])], gap = 14, tw = (w - R - gap * (wells.length - 1)) / wells.length;
-    wells.forEach((name, n) => {
-      const wa = wAttr(name), x0 = n * (tw + gap), colL = x0 + 36, colR = colL + 56, trL = colR + 4, trR = x0 + tw;
-      g.fillStyle = "#1f1d18"; g.font = "700 12px Barlow, Arial, sans-serif"; g.textAlign = "left"; g.textBaseline = "top"; g.fillText(name, x0 + 2, 2);
-      g.font = "10px Barlow, Arial, sans-serif"; g.fillStyle = "#5a5446"; g.textBaseline = "alphabetic";
-      g.textAlign = "left"; g.fillText(fmt(A.min), trL, top - 4); g.textAlign = "right"; g.fillText(fmt(A.max), trR, top - 4);
-      g.textAlign = "center"; g.font = "600 10.5px Barlow, Arial, sans-serif"; g.fillStyle = "#1f1d18"; g.fillText(shortName(key), (trL + trR) / 2, top - 16);
-      g.fillText("Formation", (colL + colR) / 2, top - 16);
-      // formations: the target group and the rock above it colored, the rest plain
-      g.save(); g.beginPath(); g.rect(colL, top, colR - colL, h - top - bot); g.clip();
-      for (const u of wa.units) {
-        const a = Yt(Math.max(u.top_twt, t0)), b = Yt(Math.min(u.base_twt, t1)); if (b <= top || a >= h - bot) continue;
-        g.fillStyle = name === ANALOG && T.group.includes(u.name) ? T.color : name === ANALOG && T.around.includes(u.name) ? "#d9d2bf" : u.name === T.unit ? T.color : "#f1ebdc";
-        g.fillRect(colL, a, colR - colL, b - a); g.strokeStyle = "rgba(90,84,70,.5)"; g.lineWidth = 0.6; g.strokeRect(colL, a, colR - colL, b - a);
-        if (b - a > 10) { g.fillStyle = "#10151a"; g.font = `${u.name === T.unit ? 700 : 500} 9.5px Barlow, Arial, sans-serif`; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(unitShort(u.name), colL + 2, (a + b) / 2, colR - colL - 3); }
-      }
-      g.restore();
-      for (const u of wa.units) if (u.top_twt > t0 && u.top_twt < t1) { g.strokeStyle = "rgba(90,84,70,.35)"; g.lineWidth = 0.8; g.beginPath(); g.moveTo(colL, Yt(u.top_twt)); g.lineTo(trR, Yt(u.top_twt)); g.stroke(); }
-      g.strokeStyle = "#5a5446"; g.lineWidth = 1; g.strokeRect(trL, top, trR - trL, h - top - bot);
-      // measured depth down the left of each well
-      g.fillStyle = "#1f1d18"; g.font = "10px Barlow, Arial, sans-serif"; g.textAlign = "right"; g.textBaseline = "middle";
-      for (const d of wa.depth_ticks) if (d.md % 200 === 0 && d.twt >= t0 && d.twt <= t1) { g.fillRect(colL - 3, Yt(d.twt), 3, 1); g.fillText(String(d.md), colL - 5, Yt(d.twt)); }
-      // the attribute along the well path
-      const XV = (v) => trL + (Math.max(A.min, Math.min(A.max, v)) - A.min) / (A.max - A.min) * (trR - trL);
-      g.save(); g.beginPath(); g.rect(trL, top, trR - trL, h - top - bot); g.clip();
-      g.strokeStyle = "#be2d28"; g.lineWidth = 1.6; g.beginPath();
-      wa.j.forEach((j, k) => { const t = gridT(j), x = XV(wa.attrs[key][k]); k ? g.lineTo(x, Yt(t)) : g.moveTo(x, Yt(t)); });
-      g.stroke(); g.restore();
-    });
-    g.fillStyle = "#1f1d18"; g.font = "10px Barlow, Arial, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle";
-    for (let t = 0.2; t <= t1 + 1e-9; t += 0.1) { g.fillRect(w - R, Yt(t), 4, 1); g.fillText(t.toFixed(1), w - R + 6, Yt(t)); }
-    g.save(); g.translate(w - 6, (top + h - bot) / 2); g.rotate(Math.PI / 2); g.textAlign = "center"; g.font = "600 10.5px Barlow, Arial, sans-serif"; g.fillText("Two-way time (s)", 0, 0); g.restore();
-    g.save(); g.translate(8, (top + h - bot) / 2); g.rotate(-Math.PI / 2); g.textAlign = "center"; g.font = "600 10.5px Barlow, Arial, sans-serif"; g.fillText("Measured depth (m)", 0, 0); g.restore();
-  }
-  function drawExBars() {
-    const c = $("#exBars"); if (!wellsAttr) return;
-    const s = separations(), T = tgt(); exBarRows = s.rows;
-    const cw = Math.round(c.getBoundingClientRect().width); if (cw > 0) c.width = cw;   // drawn at its displayed width, so the text is not scaled
-    c.height = 26 + 18 * s.rows.length;
-    hbars(c, s.rows.map(([k]) => shortName(k)), s.rows.map(([, d]) => (d == null ? NaN : d)),
-      { min: -4, max: 4, colors: s.rows.map(([k]) => (k === state.attr ? "#be2d28" : "#5a5446")), labelOpposite: true,
-        valueFmt: (v) => (Number.isNaN(v) ? "n < 5" : v.toFixed(1)), title: `${T.short} at ${ANALOG}: ${s.nG} samples against ${s.nA} above` });
-    $("#exBarsTitle").textContent = `How different the ${T.short} is from the rock above it`;
-    $("#exBarsNote").textContent = `${T.groupLabel} against ${T.aroundLabel}, at ${ANALOG}. Bars to the right: the attribute is higher in the ${T.short}. Axis fixed at −4 to 4. Clicking a bar shows that attribute.`;
-  }
-  function drawExPanel() { if ($("#exPanel").hidden) return; drawExWell(); drawExBars(); }
-
   /* SOM neurons of a unit's samples at a well */
   function neuronsAt(r, wellName, unit) {
     const w = wellMeta(wellName), rg = unitRange(w, unit), G = meta.grid, out = [];
@@ -1062,11 +975,11 @@
     lines.push(th == null ? "The Houthem pick does not reach this position along the line." : `The Houthem pick there is at ${th.toFixed(3)} s, ${Math.abs(Math.round((th - top) * 1000))} ms ${th > top ? "below" : "above"} the top in the well.`);
     const tz = pickT(state.explore.picks.zeeland, km);
     if (tz != null) lines.push(`The Zeeland pick there is at ${tz.toFixed(3)} s. No well reaches the Zeeland under the Someren license, so this pick is not tested here.`);
-    const r = run(), set = r ? new Set(neuronsAt(r, ANALOG, "Houthem Formation")) : null;   // the Houthem neurons at CAL-GT-04 for the current SOM
-    if (r && set) {
-      const ks = neuronsAt(r, HIDDEN_WELL, "Houthem Formation"), hit = ks.filter((k) => set.has(k)).length;
-      lines.push(`SOM: ${hit} of ${ks.length} Houthem samples at ${HIDDEN_WELL} fall on the neurons of the Houthem at ${ANALOG}.`);
-    }
+    state.runs.forEach((r, n) => {   // for every SOM: the Houthem samples at the well that fall on the classes left switched on
+      if (!r.hidden || !r.hidden.size) return;
+      const ks = neuronsAt(r, HIDDEN_WELL, "Houthem Formation"), hit = ks.filter((k) => !r.hidden.has(k)).length;
+      lines.push(`Run ${n + 1} (${r.features.map((f) => meta.attributes[f].label).join(", ")}): ${hit} of ${ks.length} Houthem samples at ${HIDDEN_WELL} fall on the classes switched on.`);
+    });
     lines.push("At ASTEN-GT-02 the Veldhoven Formation spans 707–1415 m, with the Someren, Wintelre, Voort and Steensel members; at CAL-GT-04 the Veldhoven Clay Member spans 315–500 m.");
     $("#revealReport").innerHTML = lines.map((l) => `<p class="small">${l}</p>`).join("");
   }
@@ -1077,19 +990,18 @@
     2: () => { setZoom("well"); setStage(1); },
     3: () => { setZoom("study"); setStage(2); },
     4: () => { state.explore.picking = true; setZoom("study"); setStage(1); },
-    5: () => { const best = chooseForSom(1)[0]; if (best) setAttr(best);
-      $("#exInfo").textContent = best ? `${meta.attributes[best].label} sets the ${tgt().short} apart most at ${ANALOG}.` : ""; setZoom("well"); setStage(3); },
-    6: () => { setZoom("study"); setStage(3); },
-    7: () => { const chosen = chooseForSom(4); state.picked = new Set(chosen); syncPicks();
-      $("#exInfo").textContent = `Chosen at ${ANALOG} for the ${tgt().short}: ${chosen.map((k) => meta.attributes[k].label).join(", ")}. The SOM trains with the button in this stage.`;
-      setZoom("study"); setStage(4); },
-    8: () => { const r = run();
-      if (!r) { $("#exInfo").textContent = "A SOM has to be trained first (step 7)."; setStage(4); return; }
-      const set = new Set(neuronsAt(r, ANALOG, tgt().unit)); state.explore.neurons = set;
-      r.hidden = new Set([...Array(r.side * r.side).keys()].filter((k) => !set.has(k))); updateNeuronInfo();
-      $("#exInfo").textContent = `The ${tgt().short} samples at ${ANALOG} fall on ${set.size} neuron${set.size === 1 ? "" : "s"}; only those classes are shown along the line. The other neurons can be switched back on in the SOM grid.`;
-      setZoom("study"); setStage(4); },
-    9: () => { setZoom("study"); setStage(5); },
+    5: () => { setZoom("study"); setStage(3);
+      $("#exInfo").textContent = "Attributes change from one to the next with the menu in the Attributes stage; its checkbox keeps an attribute for the SOM."; },
+    6: () => { setZoom("study"); setStage(4);
+      $("#exInfo").textContent = state.picked.size ? `Chosen for the SOM: ${[...state.picked].map((k) => meta.attributes[k].label).join(", ")}.` : "No attributes are chosen yet; they can be ticked in the list in this stage."; },
+    7: () => { const r = run();
+      if (!r) { $("#exInfo").textContent = "A SOM has to be trained first (step 6)."; setStage(4); return; }
+      r.hidden = new Set(); updateNeuronInfo();
+      $("#exInfo").textContent = `Moving over the section gives the neuron of each sample, for example along the ${tgt().short} at ${ANALOG} and along the pick. Clicking a neuron on the grid switches its class on or off; shift-click shows it alone.`;
+      setStage(7); setZoom("study"); refresh(); },   // the Someren prospect stage has the neuron grid at the top of its card
+    8: () => { setZoom("study"); setStage(5); },
+    9: () => { setZoom("study"); setStage(6);
+      $("#exInfo").textContent = "Another combination of attributes or number of neurons can be trained here and compared with the first SOM."; },
     10: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("someren"); setStage(run() ? 7 : 1); },
   };
 
@@ -1104,7 +1016,7 @@
       updatePickInfo(); refresh();
     }));
     $$("#exTarget button").forEach((b) => b.addEventListener("click", () => {
-      state.explore.target = b.dataset.target; state.explore.neurons = null;
+      state.explore.target = b.dataset.target;
       $$("#exTarget button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       updatePickInfo(); refresh();
     }));
@@ -1116,11 +1028,7 @@
       for (const k of Object.keys(state.explore.picks)) state.explore.picks[k] = state.explore.picks[k].map(([km, , tc]) => [km, snapTime(km, tc), tc]);
       updatePickInfo(); draw(); drawPickProfile();
     });
-    $("#exBars").addEventListener("click", (e) => {   // a bar shows its attribute
-      const c = e.currentTarget, r = c.getBoundingClientRect(), y = (e.clientY - r.top) * c.height / r.height, rowH = (c.height - 20 - 18) / exBarRows.length, i = Math.floor((y - 20) / rowH);
-      if (i >= 0 && i < exBarRows.length) { setAttr(exBarRows[i][0]); refresh(); }
-    });
-    new ResizeObserver(() => { drawPickProfile(); drawExPanel(); }).observe($("#exPanel"));
+    new ResizeObserver(() => drawPickProfile()).observe($("#pickProfileWrap"));
     applyHidden(); updatePickInfo();
   }
 
@@ -1166,7 +1074,6 @@
       return;
     }
     try { const r = await fetch("data/horizon_picks.json"); if (r.ok) picks = await r.json(); } catch (_) { /* no picks yet */ }
-    try { wellsAttr = await (await fetch("data/wells.json")).json(); } catch (_) { wellsAttr = null; }
     autoHorizons = meta.horizons.items;
     baseImg = raster(meta.section.nx, meta.nt, grayAt);
     wire(); wireWellChips(); wireGeology(); wireBuilder(); wireNeuronToggles(); wireCompare(); wireSomPicks(); setupPickMode(); wireExplore(); drawColorbar(); resize(); refresh();
