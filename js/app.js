@@ -4,7 +4,7 @@
 
   const ZOOMS = { study: [0.0, 40.0], full: [0.0, 48.5], someren: [0.0, 21.0], well: [29.0, 40.0], custom: [0.0, 48.5] };
   const STUDY_T = [0.15, 2.0];   // the wells and both target intervals lie inside this window
-  const MARGIN = { l: 58, r: 66, t: 70, b: 42 };   // top margin holds the labels, above the seismic
+  const MARGIN = { l: 58, r: 66, t: 89, b: 42 };   // top margin holds the labels, above the seismic
   const KEY_TOPS = new Set(["Rupel Clay Member", "Houthem Formation", "Zechstein Upper Claystone Formation",
     "Epen Formation", "Zeeland Formation", "Bosscheveld Formation"]);
   const PICK_MODE = new URLSearchParams(location.search).has("pick");
@@ -167,7 +167,7 @@
   function renderTopLabels() {
     // labels above the plot, placed in up to three rows so they do not overlap, with a tick down to the plot edge
     cx.save(); cx.font = "600 12px Barlow, Arial, sans-serif"; cx.textBaseline = "middle"; cx.textAlign = "left";
-    const rows = [[], [], []], rowH = 19;
+    const rows = [[], [], [], []], rowH = 19;
     for (const l of topLabels.sort((a, b) => a.x - b.x)) {
       const w = cx.measureText(l.text).width + 12;
       let x0 = Math.min(Math.max(l.x - w / 2, MARGIN.l), W - MARGIN.r - w), r = 0;
@@ -192,6 +192,7 @@
     if (control && state.showHorizons) drawHorizons(true);
     if (control && state.showWell) drawWell();
     drawSomerenLimits();
+    drawGeologyOverlay();
     drawAxes(false);
     if (runIdx != null && state.runs[runIdx]) {
       const r = state.runs[runIdx], lab = `Run ${runIdx + 1}: ${r.features.length} attributes, ${r.side ** 2} neurons`;
@@ -229,7 +230,7 @@
     drawSomerenLimits();
     if (s === 1 && PICK_MODE) drawPicks();
     if (s === 5 && state.sample) drawSampleMarker();
-    if (s === 2) drawGeologyOverlay();
+    drawGeologyOverlay();
     drawExPicks();
     if (s >= 4 && run() && !comparing) { const w = run().window; cx.save(); clipPlot(); cx.setLineDash([10, 5]); cx.strokeStyle = "#ffffff"; cx.lineWidth = 1.5;
       cx.strokeRect(X(w.km[0]), Y(w.t[0]), X(w.km[1]) - X(w.km[0]), Y(w.t[1]) - Y(w.t[0])); cx.restore(); }
@@ -292,6 +293,7 @@
       cx.fillStyle = d.color; cx.fillRect(a, y, b - a, 6);
       topLabel((a + b) / 2, d.name, d.color, "#10151a");
     }
+    if (state.stage !== 2) return;
     const f = state.geoFocus; if (!f) return;
     // outline of the area of interest, kept at least 36 px wide and tall so it stays visible on the whole line
     let x0 = X(f.km[0]), x1 = X(f.km[1]), y0 = Y(f.t[0]), y1 = Y(f.t[1]);
@@ -922,7 +924,7 @@
   function updatePickInfo() {
     const p = curPick();
     $("#pickInfo").textContent = p.length ? `${tgt().short} pick: ${p.length} point${p.length > 1 ? "s" : ""}, ${p[0][0].toFixed(1)}–${p[p.length - 1][0].toFixed(1)} km.` : `${tgt().short} pick: no points yet.`;
-    $("#pickProfileWrap").hidden = !(p.length >= 2 && state.stage <= 3);
+    $("#pickProfileWrap").hidden = true;   // no attribute profile along the pick in this lecture
   }
   function drawExPicks() {
     for (const key of Object.keys(EX_TARGETS)) {

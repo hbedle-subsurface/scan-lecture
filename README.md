@@ -13,7 +13,7 @@ A guided exercise for students new to seismic interpretation and attributes runs
 1. The seismic line, from Californië in the east to the Someren license in the west.
 2. The geology along the line, including the fault zone between Californië and Someren.
 3. Picking the target from CAL-GT-04 westward across the fault zone. Clicks add points; each point can snap to the nearest peak, trough or zero crossing within 16 ms.
-4. Attributes on the section and along the pick, in a panel lined up with the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
+4. Attributes on the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
 5. A SOM on the chosen attributes.
 6. SHAP: which attributes place samples in the SOM classes.
 7. Refining: another SOM with a different combination of attributes or number of neurons, compared with the first.
