@@ -35,7 +35,7 @@
   const state = {
     stage: 1, zoom: "study", showWell: true, showHorizons: false, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, compareMode: "off", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(),
+    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, compareMode: "off", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(["CAL-GT-01"]),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -498,7 +498,7 @@
     drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); updateNeuronInfo();
     for (const [id, idx] of [["#somGridA", state.runA], ["#somGridB", state.runB]]) { const c = $(id); if (c && state.runs[idx]) drawGridFor(c, state.runs[idx]); } drawShapGlobal(); drawShapSample();
     draw();
-    updatePickInfo(); drawPickProfile();
+    updatePickInfo();
   }
 
   function setZoom(z) { state.zoom = z; if (z !== "custom") state.zoomT = null; $$("[data-zoom]").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.zoom === z))); }
@@ -678,7 +678,7 @@
   function wireWellChips() {
     const box = $("#wellChips"), wells = meta.wells || [];
     for (const w of wells) {
-      const b = document.createElement("button"); b.textContent = w.name; b.setAttribute("aria-pressed", "true");
+      const b = document.createElement("button"); b.textContent = w.name; b.setAttribute("aria-pressed", String(!state.hiddenWells.has(w.name)));
       b.style.setProperty("--chip", (WELL_STYLE[w.name] || {}).color || "#fff");
       b.addEventListener("click", () => { state.hiddenWells.has(w.name) ? state.hiddenWells.delete(w.name) : state.hiddenWells.add(w.name); b.setAttribute("aria-pressed", String(!state.hiddenWells.has(w.name))); draw(); });
       box.append(b);
@@ -902,11 +902,10 @@
     for (let i = 1; i < p.length; i++) if (p[i][0] >= km) return p[i - 1][1] + (p[i][1] - p[i - 1][1]) * (km - p[i - 1][0]) / (p[i][0] - p[i - 1][0]);
     return null;
   }
-  function addPickPoint(km, t) { const p = curPick(); p.push([km, snapTime(km, t), t]); p.sort((a, b) => a[0] - b[0]); updatePickInfo(); draw(); drawPickProfile(); }
+  function addPickPoint(km, t) { const p = curPick(); p.push([km, snapTime(km, t), t]); p.sort((a, b) => a[0] - b[0]); updatePickInfo(); draw(); }
   function updatePickInfo() {
     const p = curPick();
     $("#pickInfo").textContent = p.length ? `${tgt().short} pick: ${p.length} point${p.length > 1 ? "s" : ""}, ${p[0][0].toFixed(1)}–${p[p.length - 1][0].toFixed(1)} km.` : `${tgt().short} pick: no points yet.`;
-    $("#pickProfileWrap").hidden = !(p.length >= 2 && state.stage <= 3);
   }
   function drawExPicks() {
     for (const key of Object.keys(EX_TARGETS)) {
@@ -919,42 +918,6 @@
       const tw = cx.measureText(lab).width + 8; cx.fillStyle = "rgba(20,24,26,.85)"; cx.fillRect(X(k0) + 6, Y(t0) - 20, tw, 15); cx.fillStyle = T.color; cx.fillText(lab, X(k0) + 10, Y(t0) - 6);
       cx.restore();
     }
-  }
-
-  /* the displayed attribute along the current pick: mean of five 4 ms samples centered on the pick at each 20 m trace, fixed axis,
-     lined up with the section above */
-  function drawPickProfile() {
-    const wrap = $("#pickProfileWrap"), p = curPick(); if (wrap.hidden) return;
-    const c = $("#pickProfile"), s = sizeCanvas(c); if (!s) return;
-    const { g, w, h } = s, key = state.attr, A = meta.attributes[key], d = cache[`attr_${key}.bin`], G = meta.grid, v = view(), T = tgt();
-    const top = 22, bot = 26, PX = (km) => MARGIN.l + (km - v.kmA) / (v.kmB - v.kmA) * (w - MARGIN.l - MARGIN.r), PY = (val) => h - bot - (val - A.min) / (A.max - A.min) * (h - top - bot);
-    g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, h); g.strokeStyle = "#5a5446"; g.lineWidth = 1; g.strokeRect(MARGIN.l, top, w - MARGIN.l - MARGIN.r, h - top - bot);
-    g.font = "11px Barlow, Arial, sans-serif"; g.fillStyle = "#1f1d18"; g.textAlign = "right"; g.textBaseline = "middle";
-    g.fillText(fmt(A.max), MARGIN.l - 4, top); g.fillText(fmt(A.min), MARGIN.l - 4, h - bot);
-    g.textAlign = "left"; g.textBaseline = "top"; g.font = "700 12px Barlow, Arial, sans-serif";
-    g.fillText(`${A.label} along the ${T.short} pick (mean of five samples, ±8 ms)`, MARGIN.l, 4);
-    const [sa, sb] = meta.someren.km; g.setLineDash([6, 4]); g.strokeStyle = "#2a9d8f";
-    for (const k of [sa, sb]) if (k > v.kmA && k < v.kmB) { g.beginPath(); g.moveTo(PX(k), top); g.lineTo(PX(k), h - bot); g.stroke(); }
-    g.setLineDash([]);
-    const cw = wellMeta(ANALOG), ur = unitRange(cw, T.unit), marks = [[ANALOG, pathAt(cw, ur ? ur[0] : 0.8), "#b8860b"]];
-    if (state.explore.revealed) marks.push([HIDDEN_WELL, wellMeta(HIDDEN_WELL).path[0].km, "#7b5ea7"]);
-    g.font = "600 10.5px Barlow, Arial, sans-serif"; g.textBaseline = "top";
-    for (const [n, k, col] of marks) if (k > v.kmA && k < v.kmB) { g.strokeStyle = col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(PX(k), top); g.lineTo(PX(k), h - bot); g.stroke(); g.fillStyle = col; g.textAlign = "center"; g.fillText(n, PX(k), h - bot + 4); }
-    g.fillStyle = "#1f1d18"; g.textAlign = "center";
-    for (let k = Math.ceil(v.kmA / 5) * 5; k <= v.kmB; k += 5) g.fillText(String(k), PX(k), h - 12);
-    if (!d) { loadBin(`attr_${key}.bin`, Uint8Array).then(() => drawPickProfile()); return; }
-    if (p.length < 2) return;
-    const kmStep = (G.km_max - G.km_min) / (G.nx - 1);
-    g.save(); g.beginPath(); g.rect(MARGIN.l, top, w - MARGIN.l - MARGIN.r, h - top - bot); g.clip();
-    g.strokeStyle = "#be2d28"; g.lineWidth = 1.6; g.beginPath(); let on = false;
-    for (let i = Math.ceil((p[0][0] - G.km_min) / kmStep); G.km_min + i * kmStep <= p[p.length - 1][0]; i++) {
-      const km = G.km_min + i * kmStep, t = pickT(p, km); if (t == null) continue;
-      const j0 = Math.round((t - meta.t_min) / G.dt); let sum = 0, n = 0;
-      for (let j = j0 - 2; j <= j0 + 2; j++) if (j >= 0 && j < G.nt) { sum += A.min + d[i * G.nt + j] / 255 * (A.max - A.min); n++; }
-      if (!n) { on = false; continue; }
-      on ? g.lineTo(PX(km), PY(sum / n)) : g.moveTo(PX(km), PY(sum / n)); on = true;
-    }
-    g.stroke(); g.restore();
   }
 
   /* SOM neurons of a unit's samples at a well */
@@ -987,28 +950,27 @@
   function setAttr(k) { state.attr = k; $("#attrSelect").value = k; drawColorbar(); syncPicks(); }
   const EX_STEPS = {
     1: () => { setZoom("study"); setStage(1); },
-    2: () => { setZoom("well"); setStage(1); },
-    3: () => { setZoom("study"); setStage(2); },
-    4: () => { state.explore.picking = true; setZoom("study"); setStage(1); },
-    5: () => { setZoom("study"); setStage(3);
+    2: () => { setZoom("study"); setStage(2); },
+    3: () => { state.explore.picking = true; setZoom("study"); setStage(1); },
+    4: () => { setZoom("study"); setStage(3);
       $("#exInfo").textContent = "Attributes change from one to the next with the menu in the Attributes stage; its checkbox keeps an attribute for the SOM."; },
-    6: () => { setZoom("study"); setStage(4);
+    5: () => { setZoom("study"); setStage(4);
       $("#exInfo").textContent = state.picked.size ? `Chosen for the SOM: ${[...state.picked].map((k) => meta.attributes[k].label).join(", ")}.` : "No attributes are chosen yet; they can be ticked in the list in this stage."; },
-    7: () => { const r = run();
-      if (!r) { $("#exInfo").textContent = "A SOM has to be trained first (step 6)."; setStage(4); return; }
+    6: () => { const r = run();
+      if (!r) { $("#exInfo").textContent = "A SOM has to be trained first (step 5)."; setStage(4); return; }
       r.hidden = new Set(); updateNeuronInfo();
       $("#exInfo").textContent = `Moving over the section gives the neuron of each sample, for example along the ${tgt().short} at ${ANALOG} and along the pick. Clicking a neuron on the grid switches its class on or off; shift-click shows it alone.`;
       setStage(7); setZoom("study"); refresh(); },   // the Someren prospect stage has the neuron grid at the top of its card
-    8: () => { setZoom("study"); setStage(5); },
-    9: () => { setZoom("study"); setStage(6);
+    7: () => { setZoom("study"); setStage(5); },
+    8: () => { setZoom("study"); setStage(6);
       $("#exInfo").textContent = "Another combination of attributes or number of neurons can be trained here and compared with the first SOM."; },
-    10: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("someren"); setStage(run() ? 7 : 1); },
+    9: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("someren"); setStage(run() ? 7 : 1); },
   };
 
   function wireExplore() {
     $$("#wellChips button").forEach((b) => { if ((meta.wells || []).some((x) => x.name === b.textContent)) b.dataset.well = b.textContent; });
     $$("#exSteps [data-ex]").forEach((b) => b.addEventListener("click", () => {
-      state.explore.picking = +b.dataset.ex === 4;
+      state.explore.picking = +b.dataset.ex === 3;
       $$("#exSteps [data-ex]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       $("#exInfo").textContent = "";
       EX_STEPS[b.dataset.ex]();
@@ -1020,15 +982,14 @@
       $$("#exTarget button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       updatePickInfo(); refresh();
     }));
-    $("#pickUndo").addEventListener("click", () => { curPick().pop(); updatePickInfo(); draw(); drawPickProfile(); });
-    $("#pickClearAll").addEventListener("click", () => { state.explore.picks[state.explore.target] = []; updatePickInfo(); draw(); drawPickProfile(); });
+    $("#pickUndo").addEventListener("click", () => { curPick().pop(); updatePickInfo(); draw(); });
+    $("#pickClearAll").addEventListener("click", () => { state.explore.picks[state.explore.target] = []; updatePickInfo(); draw(); });
     $("#pickDone").addEventListener("click", () => { state.explore.picking = false; $("#pickCtl").hidden = true; });
     $("#pickSnap").addEventListener("change", (e) => {   // re-snap every point of both picks from where it was clicked
       state.explore.snap = e.target.value;
       for (const k of Object.keys(state.explore.picks)) state.explore.picks[k] = state.explore.picks[k].map(([km, , tc]) => [km, snapTime(km, tc), tc]);
-      updatePickInfo(); draw(); drawPickProfile();
+      updatePickInfo(); draw();
     });
-    new ResizeObserver(() => drawPickProfile()).observe($("#pickProfileWrap"));
     applyHidden(); updatePickInfo();
   }
 
