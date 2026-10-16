@@ -1,7 +1,5 @@
 # The SCAN029 case
 
-Live page: https://hbedle-subsurface.github.io/scan-lecture/
-
 An interactive board for a 45-minute colloquium on seismic attributes, unsupervised seismic facies classification, and explaining what a machine learning model relies on. It uses the open 2D seismic line SCAN029 from the SCAN geothermal program in the Netherlands. The line runs from the Someren geothermal exploration license in the west, where no well lies on the line, to the Californië geothermal wells near Venlo in the east, where CAL-GT-04 provides formation tops.
 
 The page loads precomputed data and trains the SOM in the browser, so it runs on GitHub Pages or any static web server.
@@ -13,7 +11,7 @@ A guided exercise for students new to seismic interpretation and attributes runs
 1. The seismic line, from Californië in the east to the Someren license in the west.
 2. The geology along the line, including the fault zone between Californië and Someren.
 3. Picking the target from CAL-GT-04 westward across the fault zone. Clicks add points; each point can snap to the nearest peak, trough or zero crossing within 16 ms.
-4. Attributes on the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
+4. Attributes on the section and along the pick, in a panel lined up with the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
 5. A SOM on the chosen attributes.
 6. Choosing the target's classes: neurons are switched on and off on the SOM grid, with the neuron of each sample given when moving over the section.
 7. SHAP for those classes.
@@ -26,11 +24,11 @@ Reloading the page hides the well again and clears the picks and SOM runs.
 
 1. **Line and well.** The PreSTM full stack along the whole line (0–48.5 km, 0.15–3.0 s), with a default study window of 0–40 km and 0.15–2.0 s, and zoom views of the whole line, the Someren area and the Californië wells; dragging a box on the section zooms to it in distance and time. CAL-GT-04 is projected onto the line with its formation tops, horizons and formation shading; the Someren license crossing is marked with dashed lines. Buttons above the section switch each well, the karst zones and the formation names on and off in every stage; labels sit above the section. The seismic can be shown in grayscale with an impedance increase in black or white, or in red–white–blue; the data are zero phase and an increase in acoustic impedance is a negative number. Well control can be hidden.
 2. **Geologic setting.** Structural domains along the line (Roer Valley Graben, Peel Boundary Fault zone, Peel and Venlo blocks), five geologic events that each outline, on a fixed view of the whole line, where they can be seen on SCAN029, formation groups shaded beside the wells, and an interpreted seismic line across the Californië wells from Doornenbal et al. (2019).
-3. **Attributes.** Eighteen attributes, each with a choice of color scale, and a checkbox that keeps an attribute for the SOM while browsing,, including the amplitude of the full, near, mid and far stacks, overlaid on the seismic with fixed color scales.
-4. **Build a SOM.** Any combination of attributes and a SOM of 4 to 100 neurons, trained in the browser. The section is colored by each sample's neuron on a 2D color bar, the neuron grid shows how many samples each neuron holds, pairs of chosen attributes that correlate at 0.8 or more are listed, and every run is kept for comparison. Clicking a neuron on the grid switches its samples on or off on the section (shift-click shows one neuron alone), so a single facies can be followed along the line. 
-5. **SHAP.** For the current run, how far each attribute moves samples across the map on average, and, for a clicked sample, the path from the average position to the sample's neuron built from each attribute's SHAP value.
-6. **Refine and compare.** The attribute list again, so the set can be changed after reading the SHAP values and the SOM trained a second time in the same window, with the two runs shown side by side on one view of the line and their neuron grids below.
-7. **Someren prospect.** The current SOM in the Someren area with ASTEN-GT-02 and its tops, and a depth scale from the migration velocities at the center of the license crossing.
+2. **Attributes.** Eighteen attributes, each with a choice of color scale, and a checkbox that keeps an attribute for the SOM while browsing,, including the amplitude of the full, near, mid and far stacks, overlaid on the seismic with fixed color scales.
+3. **Build a SOM.** Any combination of attributes and a SOM of 4 to 100 neurons, trained in the browser. The section is colored by each sample's neuron on a 2D color bar, the neuron grid shows how many samples each neuron holds, pairs of chosen attributes that correlate at 0.8 or more are listed, and every run is kept for comparison. Clicking a neuron on the grid switches its samples on or off on the section (shift-click shows one neuron alone), so a single facies can be followed along the line. 
+4. **SHAP.** For the current run, how far each attribute moves samples across the map on average, and, for a clicked sample, the path from the average position to the sample's neuron built from each attribute's SHAP value.
+5. **Refine and compare.** The attribute list again, so the set can be changed after reading the SHAP values and the SOM trained a second time in the same window, with the two runs shown side by side on one view of the line and their neuron grids below.
+6. **Someren prospect.** The current SOM in the Someren area with ASTEN-GT-02 and its tops, and a depth scale from the migration velocities at the center of the license crossing.
 
 ## Running locally
 

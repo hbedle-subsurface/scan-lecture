@@ -47,7 +47,7 @@
         <button data-ex="1" aria-pressed="false"><b>1. The seismic line</b><small>SCAN029 from Californië in the east to the Someren license in the west</small></button>
         <button data-ex="2" aria-pressed="false"><b>2. The geology along the line</b><small>The events that shaped the section, and the fault zone between Californië and Someren</small></button>
         <button data-ex="3" aria-pressed="false"><b>3. Pick the target toward Someren</b><small>Clicks on the section add points to a pick, from the well westward across the fault zone</small></button>
-        <button data-ex="4" aria-pressed="false"><b>4. Attributes</b><small>Each attribute on the section; the ones kept here go to the SOM</small></button>
+        <button data-ex="4" aria-pressed="false"><b>4. Attributes along the pick</b><small>Each attribute on the section and along the pick; the ones kept here go to the SOM</small></button>
         <button data-ex="5" aria-pressed="false"><b>5. Build a SOM</b><small>The chosen attributes and the number of neurons; the SOM trains in the browser</small></button>
         <button data-ex="6" aria-pressed="false"><b>6. Choose the target's classes</b><small>Neurons switched on and off on the SOM grid, to keep the classes of the target</small></button>
         <button data-ex="7" aria-pressed="false"><b>7. SHAP</b><small>Which attributes place samples in those classes</small></button>
@@ -80,6 +80,7 @@
       <div class="readout" id="readout">Drag a box on the section to zoom. Move over it to read values.</div>
     </div>
     <div class="canvaswrap"><canvas id="section" aria-label="Seismic section display"></canvas></div>
+    <div id="pickProfileWrap" hidden><canvas id="pickProfile" aria-label="Attribute along the pick"></canvas></div>
   </section>
 
   <aside class="notes">
