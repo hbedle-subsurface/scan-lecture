@@ -35,7 +35,7 @@
   const state = {
     stage: 1, zoom: "study", showWell: true, showHorizons: false, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: false, compareMode: "off", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(["CAL-GT-01"]),
+    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: true, compareMode: "stacked", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(["CAL-GT-01"]),
   };
 
   const $ = (s) => document.querySelector(s);
@@ -309,6 +309,7 @@
 
   function drawSomerenLimits() {
     const [a, b] = meta.someren.km; cx.save(); clipPlot();
+    if (state.stage === 2) { cx.fillStyle = "rgba(118,183,178,.28)"; cx.fillRect(X(a), MARGIN.t, X(b) - X(a), H - MARGIN.t - MARGIN.b); }
     cx.setLineDash([8, 6]); cx.lineWidth = 1.8; cx.strokeStyle = "rgba(118,183,178,.95)";
     for (const k of [a, b]) { cx.beginPath(); cx.moveTo(X(k), MARGIN.t); cx.lineTo(X(k), H - MARGIN.b); cx.stroke(); }
     cx.restore();
@@ -581,7 +582,7 @@
       state.compareMode = e.target.value; state.compare = state.compareMode !== "off";
       $("#wipeRow").hidden = state.compareMode !== "wipe"; refresh();
     }));
-    $("#wipeRow").hidden = true;
+    $("#wipeRow").hidden = state.compareMode !== "wipe";
     $("#wipe").addEventListener("input", (e) => { state.wipe = +e.target.value; draw(); });
     $("#swapRuns").addEventListener("click", () => { [state.runA, state.runB] = [state.runB, state.runA]; fillRunSelects(); refresh(); });
   }
@@ -988,20 +989,15 @@
   const EX_STEPS = {
     1: () => { setZoom("study"); setStage(1); },
     2: () => { setZoom("study"); setStage(2); },
-    3: () => { state.explore.picking = true; setZoom("study"); setStage(1); },
+    3: () => { state.explore.picking = true; state.showHorizons = true; $$("#showHorizons, .syncHorizons").forEach((b) => (b.checked = true)); setZoom("study"); setStage(1); },
     4: () => { setZoom("study"); setStage(3);
       $("#exInfo").textContent = "Attributes change from one to the next with the menu in the Attributes stage; its checkbox keeps an attribute for the SOM."; },
     5: () => { setZoom("study"); setStage(4);
       $("#exInfo").textContent = state.picked.size ? `Chosen for the SOM: ${[...state.picked].map((k) => meta.attributes[k].label).join(", ")}.` : "No attributes are chosen yet; they can be ticked in the list in this stage."; },
-    6: () => { const r = run();
-      if (!r) { $("#exInfo").textContent = "A SOM has to be trained first (step 5)."; setStage(4); return; }
-      r.hidden = new Set(); updateNeuronInfo();
-      $("#exInfo").textContent = `Moving over the section gives the neuron of each sample, for example along the ${tgt().short} at ${ANALOG} and along the pick. Clicking a neuron on the grid switches its class on or off; shift-click shows it alone.`;
-      setStage(7); setZoom("study"); refresh(); },   // the Someren prospect stage has the neuron grid at the top of its card
-    7: () => { setZoom("study"); setStage(5); },
-    8: () => { setZoom("study"); setStage(6);
+    6: () => { setZoom("study"); setStage(5); },
+    7: () => { setZoom("study"); setStage(6);
       $("#exInfo").textContent = "Another combination of attributes or number of neurons can be trained here and compared with the first SOM."; },
-    9: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("someren"); setStage(run() ? 7 : 1); },
+    8: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("someren"); setStage(run() ? 7 : 1); },
   };
 
   function wireExplore() {

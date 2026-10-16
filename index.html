@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=2026-09-29-exercise3">
+<link rel="stylesheet" href="css/style.css?v=2026-09-29-exercise4">
 <script data-goatcounter="https://hbedle.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
@@ -49,10 +49,9 @@
         <button data-ex="3" aria-pressed="false"><b>3. Pick the target toward Someren</b><small>Clicks on the section add points to a pick, from the well westward across the fault zone</small></button>
         <button data-ex="4" aria-pressed="false"><b>4. Attributes along the pick</b><small>Each attribute on the section and along the pick; the ones kept here go to the SOM</small></button>
         <button data-ex="5" aria-pressed="false"><b>5. Build a SOM</b><small>The chosen attributes and the number of neurons; the SOM trains in the browser</small></button>
-        <button data-ex="6" aria-pressed="false"><b>6. Choose the target's classes</b><small>Neurons switched on and off on the SOM grid, to keep the classes of the target</small></button>
-        <button data-ex="7" aria-pressed="false"><b>7. SHAP</b><small>Which attributes place samples in those classes</small></button>
-        <button data-ex="8" aria-pressed="false"><b>8. Refine and build another SOM</b><small>Another combination of attributes or neurons, compared with the first</small></button>
-        <button data-ex="9" aria-pressed="false"><b>9. Reveal the Someren well</b><small>The well inside the license, its Houthem top against the pick, and each SOM's classes at the well</small></button>
+        <button data-ex="6" aria-pressed="false"><b>6. SHAP</b><small>Which attributes place samples in the SOM classes</small></button>
+        <button data-ex="7" aria-pressed="false"><b>7. Refine and build another SOM</b><small>Another combination of attributes or neurons, compared with the first</small></button>
+        <button data-ex="8" aria-pressed="false"><b>8. Reveal the Someren well</b><small>The well inside the license, its Houthem top against the pick, and each SOM's classes at the well</small></button>
       </div>
       <div id="pickCtl" hidden>
         <p class="small">Picking is on: clicks on the section add points. Dragging a box still zooms. <span id="pickInfo"></span></p>
@@ -200,9 +199,9 @@
       <h2>Refine and compare</h2>
       <div id="comparePanel">
         <fieldset class="modes">
-          <label><input type="radio" name="compareMode" value="off" checked> One run only</label>
+          <label><input type="radio" name="compareMode" value="off"> One run only</label>
           <label><input type="radio" name="compareMode" value="wipe"> Two runs, one view with a movable split</label>
-          <label><input type="radio" name="compareMode" value="stacked"> Two runs, one view above the other</label>
+          <label><input type="radio" name="compareMode" value="stacked" checked> Two runs, one view above the other</label>
         </fieldset>
         <label class="field" id="wipeRow">Split position <input type="range" id="wipe" min="0.05" max="0.95" step="0.01" value="0.5"></label>
         <div class="row2"><label class="field">Left <select id="runA"></select></label><label class="field">Right <select id="runB"></select></label></div>
@@ -249,6 +248,6 @@
   Seismic: SCAN line L2EBN2020ASCAN029, EBN and TNO, via NLOG. Well: CAL-GT-04, NLOG.
   Content CC BY-SA 4.0, Heather Bedle, University of Oklahoma.
 </footer>
-<script src="js/app.js?v=2026-09-29-exercise3"></script>
+<script src="js/app.js?v=2026-09-29-exercise4"></script>
 </body>
 </html>
