@@ -1,5 +1,7 @@
 # The SCAN029 case
 
+Live page: https://hbedle-subsurface.github.io/scan-lecture/
+
 An interactive board for a 45-minute colloquium on seismic attributes, unsupervised seismic facies classification, and explaining what a machine learning model relies on. It uses the open 2D seismic line SCAN029 from the SCAN geothermal program in the Netherlands. The line runs from the Someren geothermal exploration license in the west, where no well lies on the line, to the Californië geothermal wells near Venlo in the east, where CAL-GT-04 provides formation tops.
 
 The page loads precomputed data and trains the SOM in the browser, so it runs on GitHub Pages or any static web server.
@@ -9,15 +11,14 @@ The page loads precomputed data and trains the SOM in the browser, so it runs on
 A guided exercise for students new to seismic interpretation and attributes runs in a panel on the left of the page, with the stage controls on the right. The well inside the Someren license, ASTEN-GT-02, is hidden until the last step, and the task is to find the Houthem Formation, or the deeper Zeeland Formation, under the license, starting from the Californië wells. A target switch chooses between the two.
 
 1. The seismic line, from Californië in the east to the Someren license in the west.
-2. The Californië wells and their tops on the section.
-3. The geology along the line, including the fault zone between Californië and Someren.
-4. Picking the target from CAL-GT-04 westward across the fault zone. Clicks add points; each point can snap to the nearest peak, trough or zero crossing within 16 ms.
-5. Attributes on the section and along the pick, in a panel lined up with the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
-6. A SOM on the chosen attributes.
-7. Choosing the target's classes: neurons are switched on and off on the SOM grid, with the neuron of each sample given when moving over the section.
-8. SHAP for those classes.
-9. Refining: another SOM with a different combination of attributes or number of neurons, compared with the first.
-10. The reveal: ASTEN-GT-02 appears on the section, and the panel reports its Houthem top against the Houthem pick at the well, and, for every SOM with classes switched off, how many of the well's Houthem samples fall on the classes left on. No well reaches the Zeeland under the license, so a Zeeland pick is reported but not tested.
+2. The geology along the line, including the fault zone between Californië and Someren.
+3. Picking the target from CAL-GT-04 westward across the fault zone. Clicks add points; each point can snap to the nearest peak, trough or zero crossing within 16 ms.
+4. Attributes on the section; the checkbox in the Attributes stage keeps an attribute for the SOM.
+5. A SOM on the chosen attributes.
+6. Choosing the target's classes: neurons are switched on and off on the SOM grid, with the neuron of each sample given when moving over the section.
+7. SHAP for those classes.
+8. Refining: another SOM with a different combination of attributes or number of neurons, compared with the first.
+9. The reveal: ASTEN-GT-02 appears on the section, and the panel reports its Houthem top against the Houthem pick at the well, and, for every SOM with classes switched off, how many of the well's Houthem samples fall on the classes left on. No well reaches the Zeeland under the license, so a Zeeland pick is reported but not tested.
 
 Reloading the page hides the well again and clears the picks and SOM runs.
 
