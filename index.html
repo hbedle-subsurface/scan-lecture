@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=2026-09-29-exercise4">
+<link rel="stylesheet" href="css/style.css?v=2026-09-29-exercise5">
 <script data-goatcounter="https://hbedle.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
@@ -230,6 +230,8 @@
       <h2>Someren prospect</h2>
       <p class="small beforeReveal">The well inside the license is hidden until the last step of the exercise.</p>
       <p class="small afterReveal" hidden>ASTEN-GT-02, drilled in 1987, lies 0.1 km from the line inside the license. Its tops, from the 2021 TNO revision, are placed in two-way time with the migration velocities.</p>
+      <label class="field">Display on the section <select id="verdictLayer"><option value="som">SOM classes</option><option value="none">No overlay</option></select></label>
+      <canvas id="verdictBar" width="260" height="44" aria-label="Color scale" hidden></canvas>
       <label class="field">Overlay opacity <input type="range" id="verdictOpacity" min="0" max="1" step="0.05" value="0.6"></label>
       <canvas id="somGridVerdict" width="268" height="268" aria-label="SOM neuron grid; click a neuron to switch it on or off"></canvas>
       <div class="row2"><button class="big" id="neuronsAllV">Show all neurons</button><button class="big" id="neuronsNoneV">Hide all neurons</button></div>
@@ -248,6 +250,6 @@
   Seismic: SCAN line L2EBN2020ASCAN029, EBN and TNO, via NLOG. Well: CAL-GT-04, NLOG.
   Content CC BY-SA 4.0, Heather Bedle, University of Oklahoma.
 </footer>
-<script src="js/app.js?v=2026-09-29-exercise4"></script>
+<script src="js/app.js?v=2026-09-29-exercise5"></script>
 </body>
 </html>

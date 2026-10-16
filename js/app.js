@@ -35,7 +35,7 @@
   const state = {
     stage: 1, zoom: "study", showWell: true, showHorizons: false, showUnits: false, seisMap: "gray_black", attrLut: "default", showInterp: true, hideControl: false,
     attr: "coherence", attrOpacity: 0.75, somOpacity: 0.75, verdictOpacity: 0.55, sample: null, explained: null, traceKm: 34.19,
-    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: true, compareMode: "stacked", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(["CAL-GT-01"]),
+    runs: [], current: -1, busy: false, picked: new Set(), neurons: 6, somArea: "study", somT: [0.15, 2.0], zoomT: null, drag: null, compare: true, compareMode: "stacked", runA: 0, runB: 1, wipe: 0.5, compareCache: {}, showGeoColumns: true, geoFocus: null, showSomeren: true, showNames: true, showKarst: true, showFault: true, hiddenWells: new Set(["CAL-GT-01"]), verdictLayer: "som",
   };
 
   const $ = (s) => document.querySelector(s);
@@ -78,8 +78,9 @@
 
   async function buildOverlay() {
     const s = state.stage, g = meta.grid, nt = g.nt, tg = [meta.t_min - g.dt / 2, meta.t_min + (nt - 0.5) * g.dt];
-    if (s === 3) {
-      const d = await loadBin(`attr_${state.attr}.bin`, Uint8Array), lut = state.attrLut === "default" ? meta.attributes[state.attr].lut : meta.luts[state.attrLut].lut;
+    const layerAttr = s === 3 ? state.attr : s === 7 && state.verdictLayer.startsWith("attr:") ? state.verdictLayer.slice(5) : null;
+    if (layerAttr) {
+      const d = await loadBin(`attr_${layerAttr}.bin`, Uint8Array), lut = state.attrLut === "default" || s === 7 ? meta.attributes[layerAttr].lut : meta.luts[state.attrLut].lut;
       return { img: raster(g.nx, nt, (i, j) => lut[d[i * nt + j]]), km: [g.km_min, g.km_max], t: tg };
     }
     if (s >= 4 && run()) return classOverlay(run());
@@ -206,7 +207,7 @@
     cx.clearRect(0, 0, W, H); cx.fillStyle = "#111"; cx.fillRect(0, 0, W, H);
     const s = state.stage, control = !(s === 1 && state.hideControl);
     const alpha = { 3: state.attrOpacity, 4: state.somOpacity, 5: state.somOpacity, 6: state.somOpacity, 7: state.verdictOpacity }[s];
-    const comparing = s >= 4 && state.compare && state.runs[state.runA] && state.runs[state.runB];
+    const comparing = s === 6 && state.compare && state.runs[state.runA] && state.runs[state.runB];
 
     if (comparing && state.compareMode === "stacked") {
       // the same view of the line twice, one run above the other
@@ -494,7 +495,7 @@
   const run = () => state.runs[state.current] || null;
 
   async function refresh() {
-    const r = run(), key = state.stage <= 2 ? "" : state.stage === 3 ? `a:${state.attr}:${state.attrLut}` : `s:${r ? r.id + ":" + [...(r.hidden || [])].sort((a, b) => a - b).join(".") : "none"}`;
+    const r = run(), vl = state.verdictLayer, key = state.stage <= 2 ? "" : state.stage === 7 && vl === "none" ? "none" : state.stage === 7 && vl.startsWith("attr:") ? `a:${vl.slice(5)}:default` : state.stage === 3 ? `a:${state.attr}:${state.attrLut}` : `s:${r ? r.id + ":" + [...(r.hidden || [])].sort((a, b) => a - b).join(".") : "none"}`;
     if (key !== overlayKey) { overlay = key && !key.endsWith("none") ? await buildOverlay() : null; overlayKey = key; }
     drawSomGrid($("#somGrid")); drawSomGrid($("#somGridVerdict")); updateNeuronInfo();
     for (const [id, idx] of [["#somGridA", state.runA], ["#somGridB", state.runB]]) { const c = $(id); if (c && state.runs[idx]) drawGridFor(c, state.runs[idx]); } drawShapGlobal(); drawShapSample();
@@ -506,7 +507,7 @@
   function setStage(n) {
     state.stage = n;
     if (n === 4 || n === 6) syncPicks();
-    if (n === 7) setZoom("someren");
+    if (n === 7) setZoom("study");
     if (n === 2) setZoom("study");
     $$(".tag").forEach((b) => b.setAttribute("aria-current", String(+b.dataset.stage === n)));
     $$(".card[data-for]").forEach((c) => (c.hidden = +c.dataset.for !== n));
@@ -769,6 +770,20 @@
       aSel.append(og);
     }
     aSel.value = state.attr; aSel.addEventListener("change", () => { state.attr = aSel.value; drawColorbar(); syncPicks(); refresh(); });
+    const vSel = $("#verdictLayer"), vBar = $("#verdictBar");
+    const og2 = document.createElement("optgroup"); og2.label = "Attributes";
+    for (const [k, a] of Object.entries(meta.attributes)) og2.append(Object.assign(document.createElement("option"), { value: "attr:" + k, textContent: a.label }));
+    vSel.append(og2);
+    vSel.addEventListener("change", () => {
+      state.verdictLayer = vSel.value; const isAttr = vSel.value.startsWith("attr:"); vBar.hidden = !isAttr;
+      if (isAttr) {
+        const a = meta.attributes[vSel.value.slice(5)], g = vBar.getContext("2d"); g.clearRect(0, 0, vBar.width, vBar.height);
+        a.lut.forEach((col, i) => { g.fillStyle = `rgb(${col})`; g.fillRect(i / 256 * vBar.width, 0, vBar.width / 256 + 1, 20); });
+        g.fillStyle = "#1f1d18"; g.font = "12px Barlow, Arial, sans-serif"; g.textBaseline = "top";
+        g.textAlign = "left"; g.fillText(fmt(a.min), 0, 24); g.textAlign = "right"; g.fillText(fmt(a.max), vBar.width, 24); g.textAlign = "center"; g.fillText(a.unit, vBar.width / 2, 24);
+      }
+      refresh();
+    });
     const lSel = $("#attrLut");
     lSel.append(Object.assign(document.createElement("option"), { value: "default", textContent: "Default for this attribute" }));
     for (const [k, v] of Object.entries(meta.luts)) lSel.append(Object.assign(document.createElement("option"), { value: k, textContent: v.label }));
@@ -997,7 +1012,7 @@
     6: () => { setZoom("study"); setStage(5); },
     7: () => { setZoom("study"); setStage(6);
       $("#exInfo").textContent = "Another combination of attributes or number of neurons can be trained here and compared with the first SOM."; },
-    8: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("someren"); setStage(run() ? 7 : 1); },
+    8: () => { state.explore.revealed = true; applyHidden(); revealReport(); setZoom("study"); setStage(run() ? 7 : 1); },
   };
 
   function wireExplore() {
